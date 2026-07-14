@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { startBridgeServer } from "./server.js";
 import { appendSessionLine } from "./request-log.js";
+import { run, runStreaming } from "./process.js";
 import type { BridgeConfig } from "./config.js";
 
 vi.mock("./cursor-cli.js", () => ({
@@ -337,6 +338,60 @@ describe("startBridgeServer", () => {
     const data = JSON.parse(body);
     expect(data.object).toBe("chat.completion");
     expect(data.choices[0].message.content).toBe("Hello from agent");
+  });
+
+  it("keeps the prompt out of argv and passes it via stdin when promptViaStdin is true (non-streaming)", async () => {
+    const runMock = vi.mocked(run);
+    runMock.mockClear();
+    servers = startBridgeServer({
+      version: "1.0.0",
+      config: createTestConfig({ promptViaStdin: true }),
+    });
+    await new Promise<void>((resolve) =>
+      servers[0].on("listening", () => resolve()),
+    );
+
+    const marker = "UNIQUE_PROMPT_MARKER_argv_e2big";
+    const { status } = await fetchServer(servers[0], "/v1/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: "claude-3-opus",
+        messages: [{ role: "user", content: marker }],
+      }),
+    });
+    expect(status).toBe(200);
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const [, args, opts] = runMock.mock.calls[0];
+    // Prompt must NOT be in argv (would blow ARG_MAX / spawn E2BIG on long prompts).
+    expect(args.some((a: string) => a.includes(marker))).toBe(false);
+    // Prompt must be delivered via stdin instead.
+    expect(opts?.stdinContent).toContain(marker);
+  });
+
+  it("appends the prompt to argv (no stdin) when promptViaStdin is false (non-streaming)", async () => {
+    const runMock = vi.mocked(run);
+    runMock.mockClear();
+    servers = startBridgeServer({
+      version: "1.0.0",
+      config: createTestConfig({ promptViaStdin: false }),
+    });
+    await new Promise<void>((resolve) =>
+      servers[0].on("listening", () => resolve()),
+    );
+
+    const marker = "UNIQUE_PROMPT_MARKER_argv_default";
+    const { status } = await fetchServer(servers[0], "/v1/chat/completions", {
+      method: "POST",
+      body: JSON.stringify({
+        model: "claude-3-opus",
+        messages: [{ role: "user", content: marker }],
+      }),
+    });
+    expect(status).toBe(200);
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const [, args, opts] = runMock.mock.calls[0];
+    expect(args.some((a: string) => a.includes(marker))).toBe(true);
+    expect(opts?.stdinContent).toBeUndefined();
   });
 
   it("returns display model when request is default and defaultModel is set", async () => {

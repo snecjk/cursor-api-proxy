@@ -211,7 +211,11 @@ export async function handleAnthropicMessages(
   if (fit.truncated) {
     warnPromptTruncated(fit.originalLength, fit.finalPromptLength);
   }
-  const cmdArgs = fit.args;
+  // When the prompt is delivered via stdin (or ACP), keep it OUT of argv,
+  // otherwise a long prompt still blows past the kernel ARG_MAX (spawn E2BIG
+  // on Linux). fit.args appends the full prompt for the argv path only.
+  const cmdArgs =
+    config.promptViaStdin || config.useAcp ? fixedArgs : fit.args;
 
   const msgId = `msg_${randomUUID().replace(/-/g, "")}`;
 
