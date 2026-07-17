@@ -5,6 +5,10 @@ export type ParsedArgs = {
   tailscale: boolean;
   verbose: boolean;
   help: boolean;
+  requests: boolean;
+  requestLimit: number;
+  watch: boolean;
+  watchIntervalMs: number;
   login: boolean;
   accountsList: boolean;
   logout: boolean;
@@ -21,6 +25,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let tailscale = false;
   let verbose = false;
   let help = false;
+  let requests = false;
+  let requestLimit = 20;
+  let watch = false;
+  let watchIntervalMs = 2000;
+  let requestOptionUsed = false;
   let login = false;
   let accountsList = false;
   let logout = false;
@@ -33,6 +42,53 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+
+    if (arg === "requests") {
+      requests = true;
+      continue;
+    }
+
+    if (arg === "--limit" || arg.startsWith("--limit=")) {
+      const value = arg === "--limit" ? argv[++i] : arg.slice("--limit=".length);
+      if (!value || value.startsWith("-")) {
+        throw new Error("--limit requires a positive integer");
+      }
+      requestLimit = Number(value);
+      if (
+        !Number.isInteger(requestLimit) ||
+        requestLimit < 1 ||
+        requestLimit > 5000
+      ) {
+        throw new Error("--limit must be an integer between 1 and 5000");
+      }
+      requestOptionUsed = true;
+      continue;
+    }
+
+    if (arg === "--watch") {
+      watch = true;
+      requestOptionUsed = true;
+      continue;
+    }
+
+    if (arg === "--interval" || arg.startsWith("--interval=")) {
+      const value =
+        arg === "--interval" ? argv[++i] : arg.slice("--interval=".length);
+      if (!value || value.startsWith("-")) {
+        throw new Error(
+          "--interval requires a positive number between 0.001 and 86400 seconds",
+        );
+      }
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds < 0.001 || seconds > 86_400) {
+        throw new Error(
+          "--interval requires a positive number between 0.001 and 86400 seconds",
+        );
+      }
+      watchIntervalMs = Math.round(seconds * 1000);
+      requestOptionUsed = true;
+      continue;
+    }
 
     if (arg === "login" || arg === "add-account") {
       login = true;
@@ -113,10 +169,18 @@ export function parseArgs(argv: string[]): ParsedArgs {
     throw new Error(`Unknown argument: ${arg}`);
   }
 
+  if (requestOptionUsed && !requests) {
+    throw new Error("--limit, --watch, and --interval require requests command");
+  }
+
   return {
     tailscale,
     verbose,
     help,
+    requests,
+    requestLimit,
+    watch,
+    watchIntervalMs,
     login,
     accountsList,
     logout,
@@ -150,6 +214,12 @@ export function printHelp(version: string): void {
   console.log(
     "  reset-hwid --deep-clean   Also wipe session storage and cookies",
   );
+  console.log(
+    "  requests                  Show latest completed API requests",
+  );
+  console.log(
+    "  requests --watch          Refresh latest requests continuously",
+  );
   console.log("");
   console.log("Options:");
   console.log("  --tailscale     Bind to 0.0.0.0 for tailnet/LAN access");
@@ -157,5 +227,8 @@ export function printHelp(version: string): void {
   console.log(
     "  --mode <agent|ask|plan>  Default Cursor CLI mode (overridden by env or per-request)",
   );
+  console.log("  --limit <n>     Requests to show (1-5000, default 20)");
+  console.log("  --watch         Refresh requests continuously");
+  console.log("  --interval <s>  Watch refresh interval (default 2)");
   console.log("  -h, --help      Show this help message");
 }

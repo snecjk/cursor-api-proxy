@@ -45,6 +45,19 @@ npx cursor-api-proxy
 # or from repo: npm start / node dist/cli.js
 ```
 
+Inspect completed requests without opening the dashboard:
+
+```bash
+cursor-api-proxy requests
+cursor-api-proxy requests --limit 50
+cursor-api-proxy requests --watch --interval 1
+```
+
+The command reads `CURSOR_BRIDGE_SESSIONS_LOG` (default
+`~/.cursor-api-proxy/sessions.log`) directly, so the proxy does not need to be
+running. It shows completion time, method, status, remote address, and path.
+Set `NO_COLOR=1` for plain output.
+
 To expose on your network (e.g. Tailscale):
 
 ```bash

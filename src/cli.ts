@@ -5,10 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { loadBridgeConfig } from "./lib/config.js";
+import { loadEnvConfig } from "./lib/env.js";
 import { startBridgeServer, setupGracefulShutdown } from "./lib/server.js";
 import { parseArgs, printHelp } from "./cli/args.js";
 import { handleAccountsList, handleLogout } from "./cli/accounts.js";
 import { handleLogin } from "./cli/login.js";
+import { handleRequests } from "./cli/requests.js";
 import { handleResetHwid } from "./cli/reset-hwid.js";
 
 // Re-export parseArgs so src/cli.test.ts can import it without a separate path
@@ -34,6 +36,17 @@ async function main(): Promise<void> {
 
   if (args.help) {
     printHelp(pkg.version);
+    return;
+  }
+
+  if (args.requests) {
+    const env = loadEnvConfig({ env: process.env });
+    await handleRequests({
+      logPath: env.sessionsLogPath,
+      limit: args.requestLimit,
+      watch: args.watch,
+      intervalMs: args.watchIntervalMs,
+    });
     return;
   }
 

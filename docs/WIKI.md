@@ -66,9 +66,21 @@ Same idea as **claude-cursor-bridge**’s `claude-bridge`: a **bash** script in 
 | `cursor-api-proxy stop` | `SIGTERM`, then `SIGKILL` if needed |
 | `cursor-api-proxy restart` | `stop` then `start` |
 | `cursor-api-proxy health` | PID, port, launchd state, HTTP probe, last log lines |
+| `cursor-api-proxy requests` | Formatted latest completed requests from `sessions.log` |
 | `cursor-api-proxy enable` | Write `~/Library/LaunchAgents/com.cursor-api-proxy.plist` and `launchctl load` |
 | `cursor-api-proxy disable` | `launchctl unload` and remove the plist |
 | `cursor-api-proxy run` | Foreground `node …/dist/cli.js` (what launchd invokes) |
+
+Request viewer options:
+
+```bash
+cursor-api-proxy requests --limit 50
+cursor-api-proxy requests --watch --interval 1
+```
+
+The viewer reads `CURSOR_BRIDGE_SESSIONS_LOG` directly (default
+`~/.cursor-api-proxy/sessions.log`), including while the proxy is stopped.
+`NO_COLOR=1` disables ANSI colors.
 
 Environment the script honors:
 
