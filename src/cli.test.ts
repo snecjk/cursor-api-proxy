@@ -18,6 +18,10 @@ describe("parseArgs", () => {
     deepClean: false,
     dryRun: false,
     verbose: false,
+    requests: false,
+    requestLimit: 20,
+    watch: false,
+    watchIntervalMs: 2000,
     mode: undefined as undefined,
   };
 
@@ -213,5 +217,48 @@ describe("parseArgs", () => {
 
   it("throws when --mode has no value", () => {
     expect(() => parseArgs(["--mode"])).toThrow(/requires a value/);
+  });
+
+  it("parses requests with default options", () => {
+    expect(parseArgs(["requests"])).toEqual({
+      ...base,
+      requests: true,
+      tailscale: false,
+      help: false,
+      login: false,
+      logout: false,
+      accountsList: false,
+      accountName: "",
+      proxies: [],
+    });
+  });
+
+  it("parses requests watch options", () => {
+    expect(
+      parseArgs(["requests", "--limit", "50", "--watch", "--interval=0.5"]),
+    ).toEqual({
+      ...base,
+      requests: true,
+      requestLimit: 50,
+      watch: true,
+      watchIntervalMs: 500,
+      tailscale: false,
+      help: false,
+      login: false,
+      logout: false,
+      accountsList: false,
+      accountName: "",
+      proxies: [],
+    });
+  });
+
+  it("rejects invalid request options", () => {
+    expect(() => parseArgs(["requests", "--limit", "0"])).toThrow(
+      /between 1 and 5000/,
+    );
+    expect(() => parseArgs(["requests", "--interval", "nope"])).toThrow(
+      /positive number/,
+    );
+    expect(() => parseArgs(["--watch"])).toThrow(/require requests command/);
   });
 });
