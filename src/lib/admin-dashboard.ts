@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { BridgeConfig } from "./config.js";
+import { computeSessionStats, readLastLines } from "./session-log.js";
 
 const PLIST_LABEL = "com.cursor-api-proxy";
 
@@ -67,70 +68,6 @@ function launchdLoadedSync(): boolean {
   } catch {
     return false;
   }
-}
-
-function readLastLines(
-  filePath: string,
-  maxLines: number,
-  cb: (err: Error | null, lines: string[]) => void,
-): void {
-  fs.stat(filePath, (err, stat) => {
-    if (err) return cb(null, []);
-    const size = stat.size;
-    const CHUNK = 64 * 1024;
-    const start = Math.max(0, size - CHUNK * 4);
-    const stream = fs.createReadStream(filePath, { start, end: size });
-    let buf = "";
-    stream.on("data", (d) => (buf += d.toString("utf8")));
-    stream.on("end", () => {
-      const lines = buf.split("\n");
-      if (start > 0 && lines.length) lines.shift();
-      const trimmed = lines.filter((l) => l.length > 0);
-      cb(null, trimmed.slice(-maxLines));
-    });
-    stream.on("error", (e) => cb(e, []));
-  });
-}
-
-const SESSION_LINE_RE =
-  /^(\S+) (GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS) (\S+) (\S+) (\d{3})$/;
-
-type SessionStats = {
-  windowHours: number;
-  total: number;
-  errors: number;
-  byPath: Record<string, number>;
-  recent: { ts: string; method: string; pathname: string; status: number }[];
-};
-
-function computeStats(lines: string[], hours: number): SessionStats {
-  const cutoff = Date.now() - hours * 3600_000;
-  const stats: SessionStats = {
-    windowHours: hours,
-    total: 0,
-    errors: 0,
-    byPath: {},
-    recent: [],
-  };
-  for (const line of lines) {
-    const m = line.match(SESSION_LINE_RE);
-    if (!m) continue;
-    const ts = Date.parse(m[1]);
-    if (!Number.isFinite(ts) || ts < cutoff) continue;
-    const status = Number(m[5]);
-    const pathname = m[3];
-    stats.total++;
-    if (status >= 400) stats.errors++;
-    stats.byPath[pathname] = (stats.byPath[pathname] ?? 0) + 1;
-    stats.recent.push({
-      ts: m[1],
-      method: m[2],
-      pathname,
-      status,
-    });
-  }
-  stats.recent = stats.recent.slice(-40).reverse();
-  return stats;
 }
 
 function storagePaths(config: BridgeConfig) {
@@ -374,7 +311,7 @@ export function handleAdminDashboard(
     const hours = Math.min(168, Math.max(1, Number(q.hours) || 24));
     return readLastLines(config.sessionsLogPath, 20_000, (err, lines) => {
       if (err) return json(res, 500, { error: String(err) });
-      json(res, 200, computeStats(lines, hours));
+      json(res, 200, computeSessionStats(lines, hours));
     });
   }
   if (req.method === "GET" && pathname === "/api/wiki") {
