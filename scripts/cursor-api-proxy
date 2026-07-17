@@ -310,6 +310,12 @@ cmd_health() {
   _health_text
 }
 
+cmd_requests() {
+  local node exe
+  _load_entry || exit 1
+  exec "$node" "$exe" requests "$@"
+}
+
 cmd_menu() {
   while true; do
     echo
@@ -344,8 +350,9 @@ main() {
     rebuild) cmd_rebuild ;;
     folder) cmd_folder ;;
     run) cmd_run ;;
+    requests) shift; cmd_requests "$@" ;;
     "" ) cmd_health; echo; cmd_menu ;;
-    *) echo "Usage: $0 {start|stop|restart|health|enable|disable|rebuild|folder|run}" >&2; exit 2 ;;
+    *) echo "Usage: $0 {start|stop|restart|health|enable|disable|rebuild|folder|run|requests}" >&2; exit 2 ;;
   esac
 }
 
