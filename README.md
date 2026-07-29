@@ -322,6 +322,23 @@ node examples/test-stream.mjs
 
 See [examples/README.md](examples/README.md) for details.
 
+## Docker
+
+Requires a Cursor Dashboard API key (`CURSOR_API_KEY` from https://cursor.com/dashboard/integrations).
+
+```bash
+cp .env.example .env
+# set CURSOR_API_KEY=... in .env
+
+docker compose up --build -d
+```
+
+Listens on `http://127.0.0.1:8765` by default (host bind via `HOST_BIND` / `HOST_PORT` in `.env`). Image installs the Cursor `agent` CLI and runs the proxy as a non-root user. Health probes hit `/healthz` (no API key required).
+
+```bash
+curl -s http://127.0.0.1:8765/healthz
+curl -s http://127.0.0.1:8765/v1/models
+```
 
 ## License
 
