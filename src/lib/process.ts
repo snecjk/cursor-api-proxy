@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { resolveAgentCommand } from "./env.js";
+import { DETACH_CHILDREN, killProcessTree } from "./process-tree-kill.js";
 import { runMaxModePreflight } from "./max-mode-preflight.js";
 
 export type RunResult = {
@@ -36,11 +37,7 @@ const activeChildren = new Set<ChildProcess>();
 /** Kill all in-flight agent child processes. Called on server shutdown. */
 export function killAllChildProcesses(): void {
   for (const child of activeChildren) {
-    try {
-      child.kill("SIGTERM");
-    } catch {
-      /* already exited */
-    }
+    killProcessTree(child, "SIGTERM");
   }
   activeChildren.clear();
 }
@@ -90,6 +87,7 @@ function spawnChild(
     env,
     stdio: useStdin ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
     windowsVerbatimArguments: resolved.windowsVerbatimArguments,
+    detached: DETACH_CHILDREN,
   });
 
   if (useStdin && opts!.stdinContent !== undefined && child.stdin) {
@@ -124,15 +122,15 @@ export function runStreaming(
     const timeout =
       typeof timeoutMs === "number" && timeoutMs > 0
         ? setTimeout(() => {
-            child.kill("SIGKILL");
+            killProcessTree(child, "SIGKILL");
           }, timeoutMs)
         : undefined;
 
     // Abort signal support — kill child when client disconnects
-    const onAbort = () => child.kill("SIGTERM");
+    const onAbort = () => killProcessTree(child, "SIGTERM");
     if (opts.signal) {
       if (opts.signal.aborted) {
-        child.kill("SIGTERM");
+        killProcessTree(child, "SIGTERM");
       } else {
         opts.signal.addEventListener("abort", onAbort, { once: true });
       }
@@ -173,6 +171,7 @@ export function runStreaming(
       if (timeout) clearTimeout(timeout);
       opts.signal?.removeEventListener("abort", onAbort);
       activeChildren.delete(child);
+      killProcessTree(child, "SIGKILL");
       if (lineBuffer.trim()) opts.onLine(lineBuffer.trim());
       if (signal) {
         const signalNote = `terminated by signal ${signal}`;
@@ -203,14 +202,14 @@ export function run(
     const timeout =
       typeof timeoutMs === "number" && timeoutMs > 0
         ? setTimeout(() => {
-            child.kill("SIGKILL");
+            killProcessTree(child, "SIGKILL");
           }, timeoutMs)
         : undefined;
 
-    const onAbort = () => child.kill("SIGTERM");
+    const onAbort = () => killProcessTree(child, "SIGTERM");
     if (opts.signal) {
       if (opts.signal.aborted) {
-        child.kill("SIGTERM");
+        killProcessTree(child, "SIGTERM");
       } else {
         opts.signal.addEventListener("abort", onAbort, { once: true });
       }
@@ -243,6 +242,7 @@ export function run(
       if (timeout) clearTimeout(timeout);
       opts.signal?.removeEventListener("abort", onAbort);
       activeChildren.delete(child);
+      killProcessTree(child, "SIGKILL");
       if (signal) {
         const signalNote = `terminated by signal ${signal}`;
         stderr = stderr.trim() ? `${stderr.trim()}\n${signalNote}` : signalNote;
