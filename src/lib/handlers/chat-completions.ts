@@ -39,6 +39,7 @@ import {
   reportRequestError,
   getAccountStats,
 } from "../account-pool.js";
+import { abortOnClientDisconnect } from "../client-disconnect.js";
 import {
   fitPromptToWinCmdline,
   warnPromptTruncated,
@@ -200,7 +201,7 @@ export async function handleChatCompletions(
     const streamStart = Date.now();
 
     const abortController = new AbortController();
-    req.once("close", () => abortController.abort());
+    abortOnClientDisconnect(res, abortController);
 
     writeSseHeaders(res, truncatedHeaders);
     res.on("error", () => {
@@ -421,7 +422,7 @@ export async function handleChatCompletions(
   const syncStart = Date.now();
 
   const abortController = new AbortController();
-  req.once("close", () => abortController.abort());
+  abortOnClientDisconnect(res, abortController);
 
   const out = await runAgentSync(
     config,
