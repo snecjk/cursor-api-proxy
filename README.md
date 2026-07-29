@@ -136,6 +136,12 @@ const completion = await client.chat.completions.create({
   messages: [{ role: "user", content: "Hello" }],
 });
 console.log(completion.choices[0].message.content);
+
+const response = await client.responses.create({
+  model: "gpt-5.2",
+  input: "Hello",
+});
+console.log(response.output_text);
 ```
 
 For a sync config without auto-start, use `getOpenAIOptions()` and ensure the proxy is already running.
@@ -172,9 +178,10 @@ const client = new OpenAI({
 | GET    | `/health`              | Server and config info                                                |
 | GET    | `/v1/models`           | List Cursor models (from `agent --list-models`)                       |
 | POST   | `/v1/chat/completions` | Chat completion (OpenAI shape; supports `stream: true`)               |
+| POST   | `/v1/responses`        | Responses API text generation shape; supports semantic SSE streaming  |
 | POST   | `/v1/messages`         | Anthropic Messages API (used by Claude Code; supports `stream: true`) |
 
-**Usage / token fields:** Responses may include `usage` with `prompt_tokens`, `completion_tokens`, and `total_tokens`. These are **heuristic estimates** (character count ÷ 4), not Cursor billing meters. Do not use them for invoicing.
+**Usage / token fields:** Responses may include `usage` token fields (`prompt_tokens`/`completion_tokens` for Chat Completions, `input_tokens`/`output_tokens` for Responses). These are **heuristic estimates** (character count ÷ 4), not Cursor billing meters. Do not use them for invoicing.
 
 ## Environment variables
 
@@ -305,7 +312,7 @@ _Result: account1 is on 8765, account2 is on 8766, etc._
 
 ## Streaming
 
-The proxy supports `stream: true` on `POST /v1/chat/completions` and `POST /v1/messages`. It returns Server-Sent Events (SSE) in OpenAI’s streaming format. Cursor CLI emits incremental deltas plus a final full message; the proxy deduplicates output so clients receive each chunk only once.
+The proxy supports `stream: true` on `POST /v1/chat/completions`, `POST /v1/responses`, and `POST /v1/messages`. Chat Completions and Messages return Server-Sent Events (SSE) in OpenAI/Anthropic streaming formats. Responses uses OpenAI Responses semantic SSE events (`response.created`, `response.output_text.delta`, …). Cursor CLI emits incremental deltas plus a final full message; the proxy deduplicates output so clients receive each chunk only once.
 
 **Test streaming:** from repo root, with the proxy running:
 
@@ -314,6 +321,7 @@ node examples/test-stream.mjs
 ```
 
 See [examples/README.md](examples/README.md) for details.
+
 
 ## License
 
