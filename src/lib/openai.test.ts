@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeModelId,
   buildPromptFromMessages,
+  responsesInputToMessages,
   toolsToSystemText,
   type OpenAiChatCompletionRequest,
 } from "./openai.js";
@@ -178,5 +179,46 @@ describe("toolsToSystemText", () => {
     const result = toolsToSystemText(tools, functions);
     expect(result).toContain("foo");
     expect(result).toContain("bar");
+  });
+});
+
+describe("responsesInputToMessages", () => {
+  it("converts string input and instructions", () => {
+    const result = responsesInputToMessages({
+      instructions: "Be concise.",
+      input: "Hello",
+    });
+    expect(result).toEqual([
+      { role: "system", content: "Be concise." },
+      { role: "user", content: "Hello" },
+    ]);
+  });
+
+  it("converts Responses message items", () => {
+    const result = responsesInputToMessages({
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "What is 2+2?" }],
+        },
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: "4" }],
+        },
+      ],
+    });
+    expect(result).toEqual([
+      { role: "user", content: "What is 2+2?" },
+      { role: "assistant", content: "4" },
+    ]);
+  });
+
+  it("converts function call output items as tool messages", () => {
+    const result = responsesInputToMessages({
+      input: [{ type: "function_call_output", call_id: "call_1", output: "42" }],
+    });
+    expect(result).toEqual([{ role: "tool", content: "42" }]);
   });
 });
