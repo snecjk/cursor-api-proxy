@@ -7,6 +7,7 @@ import type { ModelCacheRef } from "./handlers/models.js";
 import { handleHealth } from "./handlers/health.js";
 import { handleModels } from "./handlers/models.js";
 import { handleChatCompletions } from "./handlers/chat-completions.js";
+import { handleResponses } from "./handlers/responses.js";
 import { handleAnthropicMessages } from "./handlers/anthropic-messages.js";
 import {
   adminDashboardMatches,
@@ -94,6 +95,20 @@ export function createRequestListener(opts: BridgeServerOptions) {
       if (req.method === "POST" && pathname === "/v1/chat/completions") {
         const raw = await readBody(req);
         await handleChatCompletions(
+          req,
+          res,
+          { config, lastRequestedModelRef, modelCacheRef },
+          raw,
+          method,
+          pathname,
+          remoteAddress,
+        );
+        return;
+      }
+
+      if (req.method === "POST" && pathname === "/v1/responses") {
+        const raw = await readBody(req);
+        await handleResponses(
           req,
           res,
           { config, lastRequestedModelRef, modelCacheRef },
