@@ -44,6 +44,7 @@ import {
   fitPromptToWinCmdline,
   warnPromptTruncated,
 } from "../win-cmdline-limit.js";
+import { abortOnClientDisconnect } from "../client-disconnect.js";
 
 function isRateLimited(stderr: string): boolean {
   return /\b429\b|rate.?limit|too many requests/i.test(stderr);
@@ -258,7 +259,7 @@ export async function handleAnthropicMessages(
     const streamStart = Date.now();
 
     const abortController = new AbortController();
-    req.once("close", () => abortController.abort());
+    abortOnClientDisconnect(res, abortController);
 
     if (config.useAcp && typeof promptForAgent === "string") {
       let accumulated = "";
@@ -430,7 +431,7 @@ export async function handleAnthropicMessages(
   const syncStart = Date.now();
 
   const abortController = new AbortController();
-  req.once("close", () => abortController.abort());
+  abortOnClientDisconnect(res, abortController);
 
   const out = await runAgentSync(
     config,

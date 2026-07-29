@@ -45,6 +45,7 @@ import {
   fitPromptToWinCmdline,
   warnPromptTruncated,
 } from "../win-cmdline-limit.js";
+import { abortOnClientDisconnect } from "../client-disconnect.js";
 import { getCachedCursorModels, type ModelCacheRef } from "./models.js";
 
 function isRateLimited(stderr: string): boolean {
@@ -304,7 +305,7 @@ export async function handleResponses(
     const streamStart = Date.now();
 
     const abortController = new AbortController();
-    req.once("close", () => abortController.abort());
+    abortOnClientDisconnect(res, abortController);
 
     writeSseHeaders(res, truncatedHeaders);
     res.on("error", () => {
@@ -525,7 +526,7 @@ export async function handleResponses(
   const syncStart = Date.now();
 
   const abortController = new AbortController();
-  req.once("close", () => abortController.abort());
+  abortOnClientDisconnect(res, abortController);
 
   const out = await runAgentSync(
     config,
