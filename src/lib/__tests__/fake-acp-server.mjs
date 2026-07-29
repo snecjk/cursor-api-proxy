@@ -61,6 +61,20 @@ rl.on("line", (line) => {
       else if (msg.method === "session/set_config_option") result = {};
       else if (msg.method === "session/prompt") {
         result = {};
+        if (scenario === "with_thought") {
+          process.stdout.write(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              method: "session/update",
+              params: {
+                update: {
+                  sessionUpdate: "agent_thought_chunk",
+                  content: { text: "SECRET_THOUGHT" },
+                },
+              },
+            }) + "\n",
+          );
+        }
         process.stdout.write(
           JSON.stringify({
             jsonrpc: "2.0",

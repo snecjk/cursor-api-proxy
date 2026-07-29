@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  extractAcpUpdateText,
   resolveAcpModelConfigValue,
   runAcpStream,
   runAcpSync,
@@ -16,6 +17,21 @@ function parseLastSetConfig(stderr: string): Record<string, unknown> | null {
   const last = lines[lines.length - 1];
   return JSON.parse(last.slice("__FAKE_ACP_SET_CONFIG__:".length)) as Record<string, unknown>;
 }
+
+describe("extractAcpUpdateText", () => {
+  it("reads string content.text", () => {
+    expect(extractAcpUpdateText({ text: "hi" })).toBe("hi");
+  });
+
+  it("joins array content parts", () => {
+    expect(
+      extractAcpUpdateText([
+        { text: "a" },
+        { content: { text: "b" } },
+      ]),
+    ).toBe("ab");
+  });
+});
 
 describe("resolveAcpModelConfigValue", () => {
   it("returns display name when catalog is missing", () => {
@@ -60,6 +76,19 @@ describe("runAcpSync", () => {
     const result = await resultPromise;
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Hello from fake ACP");
+  });
+
+  it("keeps agent_thought_chunk out of stdout content", async () => {
+    const result = await runAcpSync(node, [fakeServerPath], "test prompt", {
+      cwd,
+      timeoutMs: 5000,
+      skipAuthenticate: true,
+      env: { FAKE_ACP_SCENARIO: "with_thought" },
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe("Hello from fake ACP");
+    expect(result.stdout).not.toContain("SECRET_THOUGHT");
+    expect(result.reasoning).toBe("SECRET_THOUGHT");
   });
 
   it("skips authenticate when skipAuthenticate is true", async () => {
@@ -171,6 +200,25 @@ describe("runAcpStream", () => {
     );
     expect(result.code).toBe(0);
     expect(chunks.join("")).toContain("Hello from fake ACP");
+  });
+
+  it("streams message chunks and ignores thought chunks", async () => {
+    const chunks: string[] = [];
+    const result = await runAcpStream(
+      node,
+      [fakeServerPath],
+      "stream test",
+      {
+        cwd,
+        timeoutMs: 5000,
+        skipAuthenticate: true,
+        env: { FAKE_ACP_SCENARIO: "with_thought" },
+      },
+      (t) => chunks.push(t),
+    );
+    expect(result.code).toBe(0);
+    expect(chunks.join("")).toBe("Hello from fake ACP");
+    expect(chunks.join("")).not.toContain("SECRET_THOUGHT");
   });
 
   it("sends session/set_config_option with configId when model is set", async () => {
