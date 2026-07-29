@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { debuglog } from "node:util";
 
 import { trackChildProcess } from "./process.js";
+import { DETACH_CHILDREN, killProcessTree } from "./process-tree-kill.js";
 
 const debugAcp = debuglog("cursor-api-proxy:acp");
 
@@ -281,6 +282,7 @@ export function runAcpSync(
       env: buildAcpSpawnEnv(opts.env),
       stdio: ["pipe", "pipe", "pipe"],
       windowsVerbatimArguments: opts.spawnOptions?.windowsVerbatimArguments,
+      detached: DETACH_CHILDREN,
     });
 
     trackChildProcess(child);
@@ -290,11 +292,7 @@ export function runAcpSync(
     let resolved = false;
 
     const onAbort = () => {
-      try {
-        child.kill("SIGTERM");
-      } catch {
-        /* ignore */
-      }
+      killProcessTree(child, "SIGTERM");
     };
     if (opts.signal) {
       if (opts.signal.aborted) onAbort();
@@ -313,10 +311,10 @@ export function runAcpSync(
       }
       try {
         child.stdin?.end();
-        child.kill("SIGKILL");
       } catch {
         /* ignore */
       }
+      killProcessTree(child, "SIGKILL");
       resolve({
         code,
         stdout: accumulated.trim(),
@@ -493,6 +491,7 @@ export function runAcpStream(
       env: buildAcpSpawnEnv(opts.env),
       stdio: ["pipe", "pipe", "pipe"],
       windowsVerbatimArguments: opts.spawnOptions?.windowsVerbatimArguments,
+      detached: DETACH_CHILDREN,
     });
 
     trackChildProcess(child);
@@ -501,11 +500,7 @@ export function runAcpStream(
     let resolved = false;
 
     const onAbort = () => {
-      try {
-        child.kill("SIGTERM");
-      } catch {
-        /* ignore */
-      }
+      killProcessTree(child, "SIGTERM");
     };
     if (opts.signal) {
       if (opts.signal.aborted) onAbort();
@@ -524,10 +519,10 @@ export function runAcpStream(
       }
       try {
         child.stdin?.end();
-        child.kill("SIGKILL");
       } catch {
         /* ignore */
       }
+      killProcessTree(child, "SIGKILL");
       resolve({ code, stderr: stderr.trim() });
     };
 
