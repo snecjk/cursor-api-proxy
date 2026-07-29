@@ -340,6 +340,60 @@ describe("startBridgeServer", () => {
     expect(data.choices[0].message.content).toBe("Hello from agent");
   });
 
+  it("returns OpenAI Responses shape for POST /v1/responses", async () => {
+    servers = startBridgeServer({
+      version: "1.0.0",
+      config: createTestConfig(),
+    });
+    await new Promise<void>((resolve) =>
+      servers[0].on("listening", () => resolve()),
+    );
+
+    const { status, body } = await fetchServer(servers[0], "/v1/responses", {
+      method: "POST",
+      body: JSON.stringify({
+        model: "claude-3-opus",
+        instructions: "Be helpful.",
+        input: "Hi",
+      }),
+    });
+    expect(status).toBe(200);
+    const data = JSON.parse(body);
+    expect(data.object).toBe("response");
+    expect(data.status).toBe("completed");
+    expect(data.output[0].type).toBe("message");
+    expect(data.output[0].content[0].type).toBe("output_text");
+    expect(data.output[0].content[0].text).toBe("Hello from agent");
+    expect(data.output_text).toBe("Hello from agent");
+    expect(data.usage.input_tokens).toBeGreaterThan(0);
+    expect(data.usage.output_tokens).toBeGreaterThan(0);
+  });
+
+  it("streams OpenAI Responses semantic SSE events", async () => {
+    servers = startBridgeServer({
+      version: "1.0.0",
+      config: createTestConfig(),
+    });
+    await new Promise<void>((resolve) =>
+      servers[0].on("listening", () => resolve()),
+    );
+
+    const { status, body } = await fetchServer(servers[0], "/v1/responses", {
+      method: "POST",
+      body: JSON.stringify({
+        model: "claude-3-opus",
+        input: "Hi",
+        stream: true,
+      }),
+    });
+    expect(status).toBe(200);
+    expect(body).toContain("event: response.created");
+    expect(body).toContain("event: response.output_text.delta");
+    expect(body).toContain('"delta":"Hello"');
+    expect(body).toContain("event: response.completed");
+    expect(body).toContain("data: [DONE]");
+  });
+
   it("keeps the prompt out of argv and passes it via stdin when promptViaStdin is true (non-streaming)", async () => {
     const runMock = vi.mocked(run);
     runMock.mockClear();
