@@ -1,0 +1,40 @@
+# Mihomo (Clash Meta) — 仅供 cursor-api-proxy 出网使用
+# mode: global → 连到本容器 7890 的流量全部走订阅节点
+# 其他 Docker 服务不要设置 HTTP_PROXY，就不会受影响
+
+mixed-port: 7890
+socks-port: 7891
+allow-lan: true
+bind-address: '*'
+mode: global
+log-level: info
+ipv6: false
+find-process-mode: off
+# 仅容器内调试用；不要映射到宿主机公网
+external-controller: 127.0.0.1:9090
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  nameserver:
+    - 223.5.5.5
+    - 8.8.8.8
+
+proxy-providers:
+  subscription:
+    type: http
+    url: "__CLASH_SUBSCRIPTION_URL__"
+    path: ./providers/subscription.yaml
+    interval: 3600
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 600
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    use:
+      - subscription
+    proxies:
+      - DIRECT
