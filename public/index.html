@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>cursor-api-proxy</title>
+  <title data-i18n="title.dashboard">控制台 — cursor-api-proxy</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -14,10 +14,14 @@
       <span class="muted-text mono" id="status-summary" style="font-weight: 400; font-size: 12px;">…</span>
     </div>
     <nav>
-      <a href="/" class="active">Dashboard</a>
-      <a href="/wiki">Wiki</a>
+      <a href="/" class="active" data-i18n="common.dashboard" data-locale-link>控制台</a>
+      <a href="/wiki" data-i18n="common.wiki" data-locale-link>使用手册</a>
       <a href="/healthz" target="_blank">/healthz</a>
       <a href="/health" target="_blank">/health</a>
+      <select id="language-select" class="language-select" aria-label="Language / 语言">
+        <option value="zh-CN">中文</option>
+        <option value="en">English</option>
+      </select>
     </nav>
   </header>
 
@@ -25,84 +29,85 @@
     <div class="grid cols-2" style="margin-bottom: 16px;">
       <section class="card">
         <div class="card-head">
-          <span>Status</span>
+          <span data-i18n="status.title">运行状态</span>
           <div class="actions">
-            <button class="btn small" id="refresh-btn">Refresh</button>
+            <button class="btn small" id="refresh-btn" data-i18n="status.refresh">刷新</button>
           </div>
         </div>
         <div class="card-body" id="status-body">
-          <div class="empty">Loading…</div>
+          <div class="empty" data-i18n="common.loading">加载中…</div>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">
-          <span>Proxy configuration</span>
+          <span data-i18n="config.title">代理配置</span>
         </div>
         <div class="card-body" id="config-body">
-          <div class="empty">Loading…</div>
+          <div class="empty" data-i18n="common.loading">加载中…</div>
         </div>
       </section>
     </div>
 
     <section class="card" style="margin-bottom: 16px;">
       <div class="card-head">
-        <span>Actions</span>
-        <span class="muted-text" style="font-size: 11px; text-transform: none; letter-spacing: 0;">runs <span class="mono">cursor-api-proxy &lt;cmd&gt;</span> in background</span>
+        <span data-i18n="actions.title">快捷操作</span>
+        <span class="muted-text" data-i18n="actions.hint" style="font-size: 11px; text-transform: none; letter-spacing: 0;">在后台运行 cursor-api-proxy &lt;命令&gt;</span>
       </div>
       <div class="card-body" style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <button class="btn primary" data-action="restart">Restart proxy</button>
-        <button class="btn danger" data-action="stop">Stop proxy</button>
-        <button class="btn" data-action="enable">Enable autostart</button>
-        <button class="btn" data-action="disable">Disable autostart</button>
+        <button class="btn primary" data-action="restart" data-i18n="actions.restart">重启代理</button>
+        <button class="btn danger" data-action="stop" data-i18n="actions.stop">停止代理</button>
+        <button class="btn" data-action="enable" data-i18n="actions.enable">启用开机自启</button>
+        <button class="btn" data-action="disable" data-i18n="actions.disable">关闭开机自启</button>
       </div>
     </section>
 
     <div class="grid cols-2" style="margin-bottom: 16px;">
       <section class="card">
         <div class="card-head">
-          <span>Request stats (sessions log)</span>
+          <span data-i18n="stats.title">请求统计（会话日志）</span>
           <span class="muted-text mono" id="stats-total" style="font-size: 12px; text-transform: none; letter-spacing: 0;"></span>
         </div>
         <div class="card-body" id="stats-body">
-          <div class="empty">Loading…</div>
+          <div class="empty" data-i18n="common.loading">加载中…</div>
         </div>
       </section>
 
       <section class="card">
         <div class="card-head">
-          <span>Recent requests</span>
+          <span data-i18n="stats.recent">最近请求</span>
         </div>
         <div class="card-body" id="recent-body" style="padding: 0;">
-          <div class="empty">Loading…</div>
+          <div class="empty" data-i18n="common.loading">加载中…</div>
         </div>
       </section>
     </div>
 
     <section class="card">
       <div class="card-head">
-        <span>Live log tail</span>
+        <span data-i18n="logs.title">实时日志</span>
         <div class="actions">
           <label class="interval-control">
-            <span class="muted-text">interval</span>
+            <span class="muted-text" data-i18n="logs.interval">刷新间隔</span>
             <input type="number" id="log-interval-input" class="interval-input" min="0.5" step="0.5" value="3" />
-            <span class="muted-text">s</span>
+            <span class="muted-text" data-i18n="logs.seconds">秒</span>
           </label>
           <label class="muted-text" style="font-size: 12px;">
-            <input type="checkbox" id="autoscroll" checked /> autoscroll
+            <input type="checkbox" id="autoscroll" checked /> <span data-i18n="logs.autoscroll">自动滚动</span>
           </label>
-          <button class="btn small" id="pause-btn">Pause</button>
-          <button class="btn small danger" id="clear-btn">Clear</button>
+          <button class="btn small" id="pause-btn" data-i18n="logs.pause">暂停</button>
+          <button class="btn small danger" id="clear-btn" data-i18n="logs.clear">清空</button>
         </div>
       </div>
       <div class="log-viewer" id="log-viewer">
-        <div class="empty">Loading…</div>
+        <div class="empty" data-i18n="common.loading">加载中…</div>
       </div>
     </section>
   </main>
 
   <div class="toast-stack" id="toasts"></div>
 
+  <script src="/static/i18n.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>

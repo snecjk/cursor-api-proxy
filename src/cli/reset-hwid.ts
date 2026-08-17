@@ -24,6 +24,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { t } from "../lib/i18n.js";
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ export function generateNewIds(): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 function killCursor(): void {
-  log("🔪", "Stopping Cursor processes...");
+  log("🔪", t("reset.stopping"));
   try {
     if (process.platform === "win32") {
       spawnSync("taskkill", ["/F", "/IM", "Cursor.exe"], { stdio: "pipe" });
@@ -102,7 +104,7 @@ function killCursor(): void {
   } catch {
     /* cursor might not be running */
   }
-  log("✅", "Cursor stopped (or was not running)");
+  log("✅", t("reset.stopped"));
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +116,10 @@ function updateStorageJson(
   ids: Record<string, string>,
 ): void {
   if (!fs.existsSync(storagePath)) {
-    log("⚠️ ", `storage.json not found: ${storagePath}`);
+    log(
+      "⚠️ ",
+      t("reset.fileMissing", { file: "storage.json", path: storagePath }),
+    );
     return;
   }
 
@@ -131,9 +136,12 @@ function updateStorageJson(
     const data = JSON.parse(raw) as Record<string, unknown>;
     Object.assign(data, ids);
     fs.writeFileSync(storagePath, JSON.stringify(data, null, 2), "utf-8");
-    log("✅", "storage.json updated");
+    log("✅", t("reset.fileUpdated", { file: "storage.json" }));
   } catch (e) {
-    log("❌", `storage.json error: ${e}`);
+    log(
+      "❌",
+      t("reset.fileError", { file: "storage.json", message: String(e) }),
+    );
   }
 }
 
@@ -146,13 +154,16 @@ function updateStateVscdb(
   ids: Record<string, string>,
 ): void {
   if (!fs.existsSync(dbPath)) {
-    log("⚠️ ", `state.vscdb not found: ${dbPath}`);
+    log(
+      "⚠️ ",
+      t("reset.fileMissing", { file: "state.vscdb", path: dbPath }),
+    );
     return;
   }
 
   const sqlite3 = findSqlite3();
   if (!sqlite3) {
-    log("⚠️ ", "sqlite3 not found — skipping state.vscdb (install sqlite3 to fix)");
+    log("⚠️ ", t("reset.sqliteMissing"));
     return;
   }
 
@@ -169,7 +180,7 @@ function updateStateVscdb(
     const valueRe = /^[A-Fa-f0-9\-{}]+$/i;
     for (const [k, v] of Object.entries(ids)) {
       if (!keyRe.test(k) || !valueRe.test(v)) {
-        log("⚠️ ", "state.vscdb: skipping update — unexpected key/value format");
+        log("⚠️ ", t("reset.sqliteUnexpected"));
         return;
       }
     }
@@ -192,12 +203,21 @@ function updateStateVscdb(
     );
 
     if (result.status !== 0) {
-      log("⚠️ ", `state.vscdb error: ${result.stderr?.trim()}`);
+      log(
+        "⚠️ ",
+        t("reset.fileError", {
+          file: "state.vscdb",
+          message: result.stderr?.trim(),
+        }),
+      );
     } else {
-      log("✅", "state.vscdb updated");
+      log("✅", t("reset.fileUpdated", { file: "state.vscdb" }));
     }
   } catch (e) {
-    log("❌", `state.vscdb error: ${e}`);
+    log(
+      "❌",
+      t("reset.fileError", { file: "state.vscdb", message: String(e) }),
+    );
   }
 }
 
@@ -238,9 +258,15 @@ function updateMachineIdFile(
       } catch { /* ignore */ }
     }
     fs.writeFileSync(filePath, machineId + "\n", "utf-8");
-    log("✅", `machineId file updated (${path.basename(filePath)})`);
+    log(
+      "✅",
+      t("reset.machineIdUpdated", { file: path.basename(filePath) }),
+    );
   } catch (e) {
-    log("⚠️ ", `machineId file error: ${e}`);
+    log(
+      "⚠️ ",
+      t("reset.fileError", { file: "machineId", message: String(e) }),
+    );
   }
 }
 
@@ -262,7 +288,7 @@ const DIRS_TO_WIPE = [
 ];
 
 function deepClean(cursorRoot: string): void {
-  log("🧹", "Deep-cleaning session data...");
+  log("🧹", t("reset.deepCleaning"));
   let wiped = 0;
 
   for (const name of DIRS_TO_WIPE) {
@@ -279,7 +305,7 @@ function deepClean(cursorRoot: string): void {
     } catch { /* ignore */ }
   }
 
-  log("✅", `Wiped ${wiped} cache/session items`);
+  log("✅", t("reset.wiped", { count: wiped }));
 }
 
 // ---------------------------------------------------------------------------
@@ -290,21 +316,21 @@ export async function handleResetHwid(opts: {
   deepClean?: boolean;
   dryRun?: boolean;
 } = {}): Promise<void> {
-  console.log("\n🔄 Cursor HWID Reset\n");
-  console.log("  Resets all machine / telemetry IDs so Cursor sees a fresh install.");
-  console.log("  Cursor must be closed — it will be killed automatically.\n");
+  console.log(`\n🔄 ${t("reset.title")}\n`);
+  console.log(`  ${t("reset.description")}`);
+  console.log(`  ${t("reset.closeWarning")}\n`);
 
   const globalStorage = getCursorGlobalStorage();
   const cursorRoot = getCursorRoot();
 
   if (!fs.existsSync(globalStorage)) {
-    console.log(`❌ Cursor config not found at:\n   ${globalStorage}`);
-    console.log("   Make sure Cursor is installed and has been run at least once.");
+    console.log(`❌ ${t("reset.configMissing", { path: globalStorage })}`);
+    console.log(`   ${t("reset.installHint")}`);
     process.exit(1);
   }
 
   if (opts.dryRun) {
-    console.log("  [DRY RUN] Would reset IDs in:");
+    console.log(`  ${t("reset.dryRun")}`);
     console.log(`    ${path.join(globalStorage, "storage.json")}`);
     console.log(`    ${path.join(globalStorage, "state.vscdb")}`);
     console.log(`    ${path.join(cursorRoot, "machineId")}`);
@@ -319,20 +345,20 @@ export async function handleResetHwid(opts: {
 
   // 2. Generate new IDs
   const newIds = generateNewIds();
-  log("🎲", "Generated new IDs:");
+  log("🎲", t("reset.generated"));
   for (const [k, v] of Object.entries(newIds)) {
     console.log(`       ${k}: ${v}`);
   }
   console.log();
 
   // 3. Update files
-  log("📝", "Updating storage.json...");
+  log("📝", t("reset.updating", { file: "storage.json" }));
   updateStorageJson(path.join(globalStorage, "storage.json"), newIds);
 
-  log("🗄️ ", "Updating state.vscdb...");
+  log("🗄️ ", t("reset.updating", { file: "state.vscdb" }));
   updateStateVscdb(path.join(globalStorage, "state.vscdb"), newIds);
 
-  log("🔑", "Updating machineId file...");
+  log("🔑", t("reset.updating", { file: "machineId" }));
   updateMachineIdFile(newIds["telemetry.machineId"], cursorRoot);
 
   // 4. Optional deep clean
@@ -341,5 +367,5 @@ export async function handleResetHwid(opts: {
     deepClean(cursorRoot);
   }
 
-  console.log("\n✅ HWID reset complete. You can now restart Cursor.\n");
+  console.log(`\n✅ ${t("reset.complete")}\n`);
 }

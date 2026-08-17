@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 // so we can test it, or we could move it to a separate module. The simplest is to export it.
 
 // I'll need to add an export to cli.ts. Let me do that.
-import { parseArgs } from "./cli.js";
+import { detectLocaleArg, parseArgs } from "./cli.js";
 
 describe("parseArgs", () => {
   const base = {
@@ -22,6 +22,7 @@ describe("parseArgs", () => {
     requestLimit: 20,
     watch: false,
     watchIntervalMs: 2000,
+    language: undefined as undefined,
     mode: undefined as undefined,
   };
 
@@ -102,6 +103,32 @@ describe("parseArgs", () => {
       accountName: "",
       proxies: [],
     });
+  });
+
+  it("parses --lang", () => {
+    expect(parseArgs(["--lang", "zh-CN"])).toEqual({
+      ...base,
+      language: "zh-CN",
+      tailscale: false,
+      help: false,
+      login: false,
+      logout: false,
+      accountsList: false,
+      accountName: "",
+      proxies: [],
+    });
+    expect(parseArgs(["--lang=en"])).toMatchObject({ language: "en" });
+  });
+
+  it("detects --lang before full argument parsing", () => {
+    expect(detectLocaleArg(["--unknown", "--lang", "zh-CN"])).toBe("zh-CN");
+    expect(() => parseArgs(["--unknown", "--lang", "zh-CN"])).toThrow(
+      "未知参数：--unknown",
+    );
+  });
+
+  it("rejects unsupported --lang values", () => {
+    expect(() => parseArgs(["--lang", "fr"])).toThrow(/zh-CN.*en/);
   });
 
   it("parses login command", () => {

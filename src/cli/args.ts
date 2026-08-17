@@ -1,5 +1,12 @@
 import type { CursorExecutionMode } from "../lib/execution-mode.js";
 import { parseExecutionModeFromRequest } from "../lib/execution-mode.js";
+import {
+  getLocale,
+  parseLocale,
+  t,
+  type AppLocale,
+  type MessageKey,
+} from "../lib/i18n.js";
 
 export type ParsedArgs = {
   tailscale: boolean;
@@ -17,9 +24,27 @@ export type ParsedArgs = {
   resetHwid: boolean;
   deepClean: boolean;
   dryRun: boolean;
+  language?: AppLocale;
   /** Set via `--mode`; default applied in config when omitted. */
   mode?: CursorExecutionMode;
 };
+
+export function detectLocaleArg(argv: string[]): AppLocale | undefined {
+  let locale: AppLocale | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--lang") {
+      const value = argv[i + 1];
+      if (value && !value.startsWith("-")) {
+        locale = parseLocale(value) ?? locale;
+        i++;
+      }
+    } else if (arg.startsWith("--lang=")) {
+      locale = parseLocale(arg.slice("--lang=".length)) ?? locale;
+    }
+  }
+  return locale;
+}
 
 export function parseArgs(argv: string[]): ParsedArgs {
   let tailscale = false;
@@ -38,7 +63,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
   let resetHwid = false;
   let deepClean = false;
   let dryRun = false;
+  let language = detectLocaleArg(argv);
   let mode: CursorExecutionMode | undefined;
+  const tr = (
+    key: MessageKey,
+    values: Record<string, string | number> = {},
+  ): string => t(key, values, language ?? getLocale());
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -51,7 +81,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     if (arg === "--limit" || arg.startsWith("--limit=")) {
       const value = arg === "--limit" ? argv[++i] : arg.slice("--limit=".length);
       if (!value || value.startsWith("-")) {
-        throw new Error("--limit requires a positive integer");
+        throw new Error(tr("parse.limitRequires"));
       }
       requestLimit = Number(value);
       if (
@@ -59,7 +89,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
         requestLimit < 1 ||
         requestLimit > 5000
       ) {
-        throw new Error("--limit must be an integer between 1 and 5000");
+        throw new Error(tr("parse.limitRange"));
       }
       requestOptionUsed = true;
       continue;
@@ -75,15 +105,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
       const value =
         arg === "--interval" ? argv[++i] : arg.slice("--interval=".length);
       if (!value || value.startsWith("-")) {
-        throw new Error(
-          "--interval requires a positive number between 0.001 and 86400 seconds",
-        );
+        throw new Error(tr("parse.intervalRange"));
       }
       const seconds = Number(value);
       if (!Number.isFinite(seconds) || seconds < 0.001 || seconds > 86_400) {
-        throw new Error(
-          "--interval requires a positive number between 0.001 and 86400 seconds",
-        );
+        throw new Error(tr("parse.intervalRange"));
       }
       watchIntervalMs = Math.round(seconds * 1000);
       requestOptionUsed = true;
@@ -138,17 +164,37 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
     if (arg === "--mode") {
       if (i + 1 >= argv.length || argv[i + 1]!.startsWith("-")) {
-        throw new Error("--mode requires a value (agent, ask, or plan)");
+        throw new Error(tr("parse.modeRequires"));
       }
-      mode = parseExecutionModeFromRequest(argv[++i]!, "--mode");
+      const value = argv[++i]!;
+      try {
+        mode = parseExecutionModeFromRequest(value, "--mode");
+      } catch {
+        throw new Error(tr("parse.modeInvalid", { mode: value }));
+      }
       continue;
     }
 
     if (arg.startsWith("--mode=")) {
-      mode = parseExecutionModeFromRequest(
-        arg.slice("--mode=".length),
-        "--mode",
-      );
+      const value = arg.slice("--mode=".length);
+      try {
+        mode = parseExecutionModeFromRequest(value, "--mode");
+      } catch {
+        throw new Error(tr("parse.modeInvalid", { mode: value }));
+      }
+      continue;
+    }
+
+    if (arg === "--lang" || arg.startsWith("--lang=")) {
+      const value = arg === "--lang" ? argv[++i] : arg.slice("--lang=".length);
+      if (!value || value.startsWith("-")) {
+        throw new Error(tr("parse.languageRequires"));
+      }
+      const parsed = parseLocale(value);
+      if (!parsed) {
+        throw new Error(tr("parse.languageInvalid", { language: value }));
+      }
+      language = parsed;
       continue;
     }
 
@@ -166,11 +212,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
       continue;
     }
 
-    throw new Error(`Unknown argument: ${arg}`);
+    throw new Error(tr("parse.unknown", { argument: arg }));
   }
 
   if (requestOptionUsed && !requests) {
-    throw new Error("--limit, --watch, and --interval require requests command");
+    throw new Error(tr("parse.requestOptions"));
   }
 
   return {
@@ -189,46 +235,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
     resetHwid,
     deepClean,
     dryRun,
+    language,
     mode,
   };
 }
 
-export function printHelp(version: string): void {
+export function printHelp(
+  version: string,
+  locale: AppLocale = getLocale(),
+): void {
   console.log(`cursor-api-proxy v${version}`);
   console.log("");
-  console.log("Usage:");
-  console.log("  cursor-api-proxy [options]");
-  console.log("");
-  console.log("Commands:");
-  console.log(
-    "  login [name]              Log into a Cursor account (saved to ~/.cursor-api-proxy/accounts/)",
-  );
-  console.log(
-    "  login [name] --proxy=...  Same, but open Chrome through a random proxy from a comma-separated list",
-  );
-  console.log("  logout <name>             Remove a saved Cursor account");
-  console.log("  accounts                  List saved accounts with plan info");
-  console.log(
-    "  reset-hwid                Reset Cursor machine/telemetry IDs (anti-ban)",
-  );
-  console.log(
-    "  reset-hwid --deep-clean   Also wipe session storage and cookies",
-  );
-  console.log(
-    "  requests                  Show latest completed API requests",
-  );
-  console.log(
-    "  requests --watch          Refresh latest requests continuously",
-  );
-  console.log("");
-  console.log("Options:");
-  console.log("  --tailscale     Bind to 0.0.0.0 for tailnet/LAN access");
-  console.log("  --verbose       Enable verbose request/model logs");
-  console.log(
-    "  --mode <agent|ask|plan>  Default Cursor CLI mode (overridden by env or per-request)",
-  );
-  console.log("  --limit <n>     Requests to show (1-5000, default 20)");
-  console.log("  --watch         Refresh requests continuously");
-  console.log("  --interval <s>  Watch refresh interval (default 2)");
-  console.log("  -h, --help      Show this help message");
+  console.log(t("help.body", {}, locale));
 }

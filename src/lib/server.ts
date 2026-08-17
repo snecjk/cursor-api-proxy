@@ -3,6 +3,7 @@ import * as http from "node:http";
 import * as https from "node:https";
 
 import type { BridgeConfig } from "./config.js";
+import { t } from "./i18n.js";
 import { createRequestListener } from "./request-listener.js";
 import { initAccountPool } from "./account-pool.js";
 import { killAllChildProcesses } from "./process.js";
@@ -65,7 +66,7 @@ export function setupGracefulShutdown(
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(
-      `\n[${new Date().toISOString()}] ${signal} received — shutting down gracefully…`,
+      `\n[${new Date().toISOString()}] ${t("server.shutdown", { signal })}`,
     );
 
     // Stop accepting new connections and kill all in-flight agent processes
@@ -83,9 +84,7 @@ export function setupGracefulShutdown(
     );
 
     const forceExit = setTimeout(() => {
-      console.error(
-        "[shutdown] Timed out waiting for connections to drain — forcing exit.",
-      );
+      console.error(t("server.shutdownTimeout"));
       process.exit(1);
     }, timeoutMs).unref();
 
@@ -120,46 +119,49 @@ function startSingleServer(
   server.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
       console.error(
-        `\u274c Port ${config.port} is already in use. Set CURSOR_BRIDGE_PORT to use a different port.`,
+        `\u274c ${t("server.portInUse", { port: config.port })}`,
       );
     } else {
-      console.error(`\u274c Server error:`, err.message);
+      console.error(`\u274c ${t("server.error")}`, err.message);
     }
     process.exit(1);
   });
 
   server.listen(config.port, config.host, () => {
     const scheme = useTls ? "https" : "http";
+    const yes = t("common.yes");
+    const no = t("common.no");
+    const acpDetails = config.useAcp
+      ? ` (${t("server.launcher")}: ${acpLauncherLabel(config.acpArgs)})`
+      : "";
+    console.log(t("server.listening", {
+      url: `${scheme}://${config.host}:${config.port}`,
+    }));
+    console.log(`- ${t("server.agentBin")}: ${config.agentBin}`);
+    console.log(`- ACP: ${config.useAcp ? yes : no}${acpDetails}`);
+    console.log(`- ${t("server.workspace")}: ${config.workspace}`);
+    console.log(`- ${t("server.mode")}: ${config.mode}`);
+    console.log(`- ${t("server.defaultModel")}: ${config.defaultModel}`);
+    console.log(`- ${t("server.force")}: ${config.force ? yes : no}`);
+    console.log(`- ${t("server.approveMcps")}: ${config.approveMcps ? yes : no}`);
+    console.log(`- ${t("server.requiredKey")}: ${config.requiredKey ? yes : no}`);
+    console.log(`- ${t("server.sessionsLog")}: ${config.sessionsLogPath}`);
     console.log(
-      `cursor-api-proxy listening on ${scheme}://${config.host}:${config.port}`,
-    );
-    console.log(`- agent bin: ${config.agentBin}`);
-    console.log(
-      `- ACP: ${config.useAcp ? "yes" : "no"}${config.useAcp ? ` (launcher: ${acpLauncherLabel(config.acpArgs)})` : ""}`,
-    );
-    console.log(`- workspace: ${config.workspace}`);
-    console.log(`- mode: ${config.mode}`);
-    console.log(`- default model: ${config.defaultModel}`);
-    console.log(`- force: ${config.force}`);
-    console.log(`- approve mcps: ${config.approveMcps}`);
-    console.log(`- required api key: ${config.requiredKey ? "yes" : "no"}`);
-    console.log(`- sessions log: ${config.sessionsLogPath}`);
-    console.log(
-      `- chat-only workspace: ${config.chatOnlyWorkspace ? "yes (isolated temp dir)" : "no"}`,
-    );
-    console.log(
-      `- verbose traffic: ${config.verbose ? "yes (CURSOR_BRIDGE_VERBOSE=true)" : "no"}`,
-    );
-    console.log(
-      `- max mode: ${config.maxMode ? "yes (CURSOR_BRIDGE_MAX_MODE=true)" : "no"}`,
+      `- ${t("server.chatOnlyWorkspace")}: ${config.chatOnlyWorkspace ? `${yes} (${t("common.isolatedTemp")})` : no}`,
     );
     console.log(
-      `- Windows cmdline budget: ${config.winCmdlineMax} (prompt tail truncation when over limit; Windows only)`,
+      `- ${t("server.verboseTraffic")}: ${config.verbose ? `${yes} (CURSOR_BRIDGE_VERBOSE=true)` : no}`,
+    );
+    console.log(
+      `- ${t("server.maxMode")}: ${config.maxMode ? `${yes} (CURSOR_BRIDGE_MAX_MODE=true)` : no}`,
+    );
+    console.log(
+      `- ${t("server.windowsBudget")}: ${config.winCmdlineMax} (${t("server.windowsBudgetHint")})`,
     );
     if (config.configDirs && config.configDirs.length > 0) {
-      console.log(
-        `- account pool: enabled with ${config.configDirs.length} configuration directories`,
-      );
+      console.log(`- ${t("server.accountPool", {
+        count: config.configDirs.length,
+      })}`);
     }
   });
 

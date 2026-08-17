@@ -1,12 +1,26 @@
 (() => {
   'use strict';
 
+  const i18n = window.CursorProxyI18n;
+  const { t } = i18n;
+
   function slugify(s) {
     return String(s)
       .toLowerCase()
       .trim()
-      .replace(/[^\w\s-]/g, '')
+      .normalize('NFKC')
+      .replace(/[^\p{Letter}\p{Number}\s-]/gu, '')
       .replace(/\s+/g, '-');
+  }
+
+  function currentHashId() {
+    const hash = location.hash.slice(1);
+    if (!hash) return '';
+    try {
+      return decodeURIComponent(hash);
+    } catch {
+      return hash;
+    }
   }
 
   async function loadStatus() {
@@ -49,8 +63,8 @@
 
   function applyRenderer() {
     const renderer = new marked.Renderer();
-    renderer.heading = (text, level) => {
-      const slug = slugify(text);
+    renderer.heading = (text, level, raw) => {
+      const slug = slugify(raw);
       return `<h${level} id="${slug}">${text}</h${level}>`;
     };
     renderer.link = (href, title, text) => {
@@ -66,22 +80,29 @@
   async function render() {
     applyRenderer();
     try {
-      const r = await fetch('/api/wiki');
+      const locale = i18n.getLocale();
+      const r = await fetch(`/api/wiki?lang=${encodeURIComponent(locale)}`);
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
       const md = await r.text();
       const html = marked.parse(md);
       const wiki = document.getElementById('wiki');
       wiki.innerHTML = html;
       buildToc(wiki);
-      if (location.hash) {
-        const target = document.getElementById(location.hash.slice(1));
+      const hashId = currentHashId();
+      if (hashId) {
+        const target = document.getElementById(hashId);
         if (target) target.scrollIntoView();
       }
     } catch (e) {
-      document.getElementById('wiki').innerHTML = `<p>Failed to load wiki: ${e.message}</p>`;
+      const message = document.createElement('p');
+      message.textContent = t('wiki.failed', { message: e.message });
+      document.getElementById('wiki').replaceChildren(message);
     }
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    i18n.applyTranslations();
+    i18n.bindLanguageSelect();
     loadStatus();
     render();
   });

@@ -1,5 +1,7 @@
 import * as https from "node:https";
 
+import { getLocale, t, type AppLocale } from "../lib/i18n.js";
+
 export {
   TOKEN_FILE,
   readCachedToken,
@@ -101,21 +103,39 @@ export type StripeProfile = {
   isYearlyPlan: boolean;
 };
 
+function paidPlanName(membershipType: string): string {
+  switch (membershipType) {
+    case "pro":
+      return "Pro";
+    case "pro_plus":
+      return "Pro+";
+    default:
+      return "Ultra";
+  }
+}
+
 /** Human-readable plan name + limits for display. */
-export function describePlan(profile: StripeProfile): string {
+export function describePlan(
+  profile: StripeProfile,
+  locale: AppLocale = getLocale(),
+): string {
   const { membershipType, subscriptionStatus, daysRemainingOnTrial } = profile;
   switch (membershipType) {
     case "free_trial": {
       const days = daysRemainingOnTrial ?? 0;
-      return `Pro Trial (${days}d left) — unlimited fast requests`;
+      return t("usage.proTrial", { days }, locale);
     }
     case "pro":
     case "pro_plus":
     case "ultra":
-      return `${membershipType === "pro" ? "Pro" : membershipType === "pro_plus" ? "Pro+" : "Ultra"} — extended limits`;
+      return t(
+        "usage.extendedLimits",
+        { plan: paidPlanName(membershipType) },
+        locale,
+      );
     case "free":
     case "hobby":
-      return "Hobby (free) — limited agent requests";
+      return t("usage.hobby", {}, locale);
     default:
       return `${membershipType} · ${subscriptionStatus}`;
   }
@@ -180,20 +200,25 @@ const MODEL_LABELS: Record<string, string> = {
   "cursor-small": "Cursor Small (free)",
 };
 
-function modelLabel(key: string): string {
+function modelLabel(key: string, locale: AppLocale): string {
+  if (key === "gpt-4") return t("usage.fastPremium", {}, locale);
+  if (key === "cursor-small") return t("usage.cursorSmall", {}, locale);
   return MODEL_LABELS[key] ?? key;
 }
 
-export function formatUsageSummary(usage: UsageData): string[] {
+export function formatUsageSummary(
+  usage: UsageData,
+  locale: AppLocale = getLocale(),
+): string[] {
   const lines: string[] = [];
   const start = usage.startOfMonth
-    ? new Date(usage.startOfMonth).toLocaleDateString()
+    ? new Date(usage.startOfMonth).toLocaleDateString(locale)
     : "?";
-  lines.push(`     📅 Billing period from ${start}`);
+  lines.push(`     📅 ${t("usage.billingPeriod", { date: start }, locale)}`);
 
   const entries = Object.entries(usage.models);
   if (entries.length === 0) {
-    lines.push(`     🔢 No requests this billing period`);
+    lines.push(`     🔢 ${t("usage.none", {}, locale)}`);
     return lines;
   }
 
@@ -207,15 +232,17 @@ export function formatUsageSummary(usage: UsageData): string[] {
   for (const [key, v] of sorted) {
     const used = v.numRequests;
     const max = v.maxRequestUsage;
-    const label = modelLabel(key);
+    const label = modelLabel(key, locale);
     if (max !== null && max > 0) {
       const pct = Math.round((used / max) * 100);
       const bar = makeBar(used, max, 12);
       lines.push(`     🔢 ${label}: ${used}/${max} (${pct}%) [${bar}]`);
     } else if (used > 0) {
-      lines.push(`     🔢 ${label}: ${used} requests`);
+      lines.push(
+        `     🔢 ${label}: ${t("usage.requests", { count: used }, locale)}`,
+      );
     } else {
-      lines.push(`     🔢 ${label}: 0 requests (unlimited)`);
+      lines.push(`     🔢 ${label}: ${t("usage.unlimited", {}, locale)}`);
     }
   }
 

@@ -6,15 +6,16 @@ import { fileURLToPath } from "node:url";
 
 import { loadBridgeConfig } from "./lib/config.js";
 import { loadEnvConfig } from "./lib/env.js";
+import { setLocale, t } from "./lib/i18n.js";
 import { startBridgeServer, setupGracefulShutdown } from "./lib/server.js";
-import { parseArgs, printHelp } from "./cli/args.js";
+import { detectLocaleArg, parseArgs, printHelp } from "./cli/args.js";
 import { handleAccountsList, handleLogout } from "./cli/accounts.js";
 import { handleLogin } from "./cli/login.js";
 import { handleRequests } from "./cli/requests.js";
 import { handleResetHwid } from "./cli/reset-hwid.js";
 
-// Re-export parseArgs so src/cli.test.ts can import it without a separate path
-export { parseArgs } from "./cli/args.js";
+// Re-export argument helpers so src/cli.test.ts can import them.
+export { detectLocaleArg, parseArgs } from "./cli/args.js";
 
 // ---------------------------------------------------------------------------
 // Package metadata
@@ -32,10 +33,13 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  setLocale(detectLocaleArg(argv));
+  const args = parseArgs(argv);
+  const locale = setLocale(args.language);
 
   if (args.help) {
-    printHelp(pkg.version);
+    printHelp(pkg.version, locale);
     return;
   }
 
@@ -46,6 +50,7 @@ async function main(): Promise<void> {
       limit: args.requestLimit,
       watch: args.watch,
       intervalMs: args.watchIntervalMs,
+      locale,
     });
     return;
   }
@@ -88,7 +93,7 @@ const isMainModule = realArgv1 === fs.realpathSync(__filename);
 if (isMainModule) {
   main().catch((err) => {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`Error: ${msg}`);
+    console.error(t("error.generic", { message: msg }));
     process.exit(1);
   });
 }

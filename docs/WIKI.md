@@ -34,6 +34,8 @@ Port **`8765`** is the default (`CURSOR_BRIDGE_PORT`). Host defaults to **`127.0
 
 The dashboard and wiki are served **without** requiring `CURSOR_BRIDGE_API_KEY` (that gate applies only to LLM API traffic). Keep the service on loopback in production.
 
+Use the language selector in the top-right corner to switch between English and Chinese. The browser remembers your choice.
+
 ---
 
 ## Quick start
@@ -52,6 +54,9 @@ cursor-api-proxy health
 ```
 
 Then open the dashboard at `http://127.0.0.1:8765/` (or your configured host/port).
+
+The CLI follows the system locale by default. Override it with
+`CURSOR_API_PROXY_LANG=zh-CN` or `CURSOR_API_PROXY_LANG=en`.
 
 ---
 
@@ -87,6 +92,7 @@ Environment the script honors:
 | Variable | Meaning |
 |----------|---------|
 | `CURSOR_API_PROXY_ROOT` | Path to the **git checkout** (must contain `dist/cli.js` after `npm run build`) |
+| `CURSOR_API_PROXY_LANG` | UI language: **`zh-CN`** or **`en`** (defaults to the system locale) |
 | `CURSOR_BRIDGE_PORT` | HTTP port (default **8765**) |
 | `CURSOR_BRIDGE_HOST` | Bind address (default **127.0.0.1**) |
 
@@ -129,7 +135,8 @@ The plist label is **`com.cursor-api-proxy`**. Use **`cursor-api-proxy disable`*
 **Dashboard (no API key)**
 
 - `GET /`, `GET /wiki`, `GET /static/*`
-- `GET /api/status`, `GET /api/config`, `GET /api/log`, `GET /api/stats`, `GET /api/wiki`
+- `GET /api/status`, `GET /api/config`, `GET /api/log`, `GET /api/stats`
+- `GET /api/wiki?lang=en`, `GET /api/wiki?lang=zh-CN`
 - `POST /api/control` with body `{ "action": "start" | "stop" | "restart" | "enable" | "disable" }` — spawns the **`~/.local/bin/cursor-api-proxy`** script in the background (same pattern as the bridge).
 
 ---
@@ -140,7 +147,8 @@ The plist label is **`com.cursor-api-proxy`**. Use **`cursor-api-proxy disable`*
 |------|------|
 | `dist/cli.js` | Compiled server entry |
 | `public/` | Dashboard + wiki static assets |
-| `docs/WIKI.md` | Wiki source |
+| `docs/WIKI.md` | English wiki source |
+| `docs/WIKI.zh-CN.md` | Chinese wiki source |
 | `scripts/cursor-api-proxy` | Launcher script (symlink target) |
 | `~/.cursor-api-proxy/sessions.log` | Default request log (one line per finished response) |
 | `~/.cursor-api-proxy/proxy.log` | Launcher / background stdout+stderr |

@@ -2,6 +2,8 @@
   'use strict';
 
   const $ = id => document.getElementById(id);
+  const i18n = window.CursorProxyI18n;
+  const { t } = i18n;
 
   const state = {
     paused: false,
@@ -15,11 +17,16 @@
   };
 
   function fmtDuration(seconds) {
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    if (seconds < 60) return t('duration.seconds', { count: seconds });
+    if (seconds < 3600) {
+      return t('duration.minutes', {
+        minutes: Math.floor(seconds / 60),
+        seconds: seconds % 60,
+      });
+    }
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    return `${h}h ${m}m`;
+    return t('duration.hours', { hours: h, minutes: m });
   }
 
   function el(tag, attrs = {}, ...children) {
@@ -47,7 +54,7 @@
     }, ttl);
   }
 
-  function popup({ title, message, okText = 'OK', cancelText = null, danger = false }) {
+  function popup({ title, message, okText = t('popup.ok'), cancelText = null, danger = false }) {
     return new Promise(resolve => {
       const overlay = el('div', { class: 'popup-overlay' });
       const card = el('div', { class: 'popup-card' });
@@ -95,19 +102,19 @@
 
   function confirmPopup(message, danger = false) {
     return popup({
-      title: 'Please confirm',
+      title: t('popup.confirmTitle'),
       message,
-      okText: 'Confirm',
-      cancelText: 'Cancel',
+      okText: t('popup.confirm'),
+      cancelText: t('popup.cancel'),
       danger,
     });
   }
 
   function alertPopup(message) {
     return popup({
-      title: 'Notice',
+      title: t('popup.notice'),
       message,
-      okText: 'OK',
+      okText: t('popup.ok'),
       cancelText: null,
       danger: false,
     });
@@ -124,43 +131,48 @@
     const summary = $('status-summary');
     if (s.running) {
       dot.classList.remove('down');
-      summary.textContent = `v${s.version} · PID ${s.pid} · :${s.port} · up ${fmtDuration(s.uptimeSeconds)}`;
+      summary.textContent = t('status.summaryRunning', {
+        version: s.version,
+        pid: s.pid,
+        port: s.port,
+        uptime: fmtDuration(s.uptimeSeconds),
+      });
     } else {
       dot.classList.add('down');
-      summary.textContent = 'not running';
+      summary.textContent = t('status.notRunning');
     }
 
     const launchdBadge = s.launchdLoaded
-      ? el('span', { class: 'badge green' }, 'enabled')
-      : el('span', { class: 'badge muted' }, 'disabled');
+      ? el('span', { class: 'badge green' }, t('status.enabled'))
+      : el('span', { class: 'badge muted' }, t('status.disabled'));
 
     const runBadge = s.running
-      ? el('span', { class: 'badge green' }, 'running')
-      : el('span', { class: 'badge red' }, 'down');
+      ? el('span', { class: 'badge green' }, t('status.running'))
+      : el('span', { class: 'badge red' }, t('status.down'));
 
     const cursorKey = s.apiKeyConfigured
-      ? el('span', { class: 'badge green' }, 'CURSOR_API_KEY set')
-      : el('span', { class: 'badge yellow' }, 'no CURSOR_API_KEY');
+      ? el('span', { class: 'badge green' }, t('status.cursorKeySet'))
+      : el('span', { class: 'badge yellow' }, t('status.cursorKeyMissing'));
 
     const bridgeKey = s.bridgeApiKeyRequired
-      ? el('span', { class: 'badge yellow' }, 'CURSOR_BRIDGE_API_KEY required')
-      : el('span', { class: 'badge muted' }, 'no bridge API key gate');
+      ? el('span', { class: 'badge yellow' }, t('status.bridgeKeyRequired'))
+      : el('span', { class: 'badge muted' }, t('status.bridgeKeyOpen'));
 
     const kv = el('div', { class: 'kv' },
-      el('div', { class: 'k' }, 'Process'), el('div', { class: 'v' }, runBadge, ' ', `PID ${s.pid ?? '—'}`),
-      el('div', { class: 'k' }, 'Listening'), el('div', { class: 'v' }, `http://${s.host}:${s.port}`),
-      el('div', { class: 'k' }, 'Uptime'), el('div', { class: 'v' }, fmtDuration(s.uptimeSeconds), el('span', { class: 'dim-text' }, `  (since ${new Date(s.startedAt).toLocaleString()})`)),
-      el('div', { class: 'k' }, 'Autostart'), el('div', { class: 'v' }, launchdBadge, ' ', el('span', { class: 'dim-text mono' }, (s.plistPath || '').replace(/^.*\//, ''))),
-      el('div', { class: 'k' }, 'Cursor auth'), el('div', { class: 'v' }, cursorKey),
-      el('div', { class: 'k' }, 'Inbound API key'), el('div', { class: 'v' }, bridgeKey),
-      el('div', { class: 'k' }, 'Node'), el('div', { class: 'v' }, `${s.node} (${s.platform})`),
-      el('div', { class: 'k' }, 'Package'), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.packageRoot),
-      el('div', { class: 'k' }, 'Sessions log'), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.sessionsLogPath),
-      el('div', { class: 'k' }, 'Service log'), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.serviceLog),
+      el('div', { class: 'k' }, t('status.process')), el('div', { class: 'v' }, runBadge, ' ', `PID ${s.pid ?? '—'}`),
+      el('div', { class: 'k' }, t('status.listening')), el('div', { class: 'v' }, `http://${s.host}:${s.port}`),
+      el('div', { class: 'k' }, t('status.uptime')), el('div', { class: 'v' }, fmtDuration(s.uptimeSeconds), el('span', { class: 'dim-text' }, `  (${t('status.since', { time: new Date(s.startedAt).toLocaleString(i18n.getLocale()) })})`)),
+      el('div', { class: 'k' }, t('status.autostart')), el('div', { class: 'v' }, launchdBadge, ' ', el('span', { class: 'dim-text mono' }, (s.plistPath || '').replace(/^.*\//, ''))),
+      el('div', { class: 'k' }, t('status.cursorAuth')), el('div', { class: 'v' }, cursorKey),
+      el('div', { class: 'k' }, t('status.inboundKey')), el('div', { class: 'v' }, bridgeKey),
+      el('div', { class: 'k' }, t('status.node')), el('div', { class: 'v' }, `${s.node} (${s.platform})`),
+      el('div', { class: 'k' }, t('status.package')), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.packageRoot),
+      el('div', { class: 'k' }, t('status.sessionsLog')), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.sessionsLogPath),
+      el('div', { class: 'k' }, t('status.serviceLog')), el('div', { class: 'v mono', style: 'font-size: 11px; word-break: break-all;' }, s.serviceLog),
     );
 
     const copy = el('div', { class: 'copy-row' },
-      el('span', { class: 'label' }, 'health'),
+      el('span', { class: 'label' }, t('status.health')),
       el('code', {}, `curl -s http://${s.host}:${s.port}/healthz`),
     );
 
@@ -169,16 +181,22 @@
 
   function renderConfig(cfg) {
     const skip = new Set(['requiredKey']);
+    const formatValue = value => {
+      if (typeof value === 'boolean') {
+        return t(value ? 'common.yes' : 'common.no');
+      }
+      return typeof value === 'object' ? JSON.stringify(value) : String(value);
+    };
     const rows = Object.entries(cfg)
       .filter(([k]) => !skip.has(k))
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([k, v]) => el('tr', {},
         el('td', { class: 'mono', style: 'font-size: 12px; color: var(--muted);' }, k),
         el('td', { class: 'model', style: 'font-size: 12px; word-break: break-word;' },
-          typeof v === 'object' ? JSON.stringify(v) : String(v)),
+          formatValue(v)),
       ));
     const tbl = el('table', { class: 'mapping' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Setting'), el('th', {}, 'Value'))),
+      el('thead', {}, el('tr', {}, el('th', {}, t('config.setting')), el('th', {}, t('config.value')))),
       el('tbody', {}, ...rows),
     );
     $('config-body').replaceChildren(tbl);
@@ -186,12 +204,16 @@
 
   function renderStats(stats) {
     $('stats-total').textContent = stats.total > 0
-      ? `${stats.total} requests · ${stats.errors} errors (${stats.windowHours}h window)`
-      : 'no requests in window';
+      ? t('stats.total', {
+        total: stats.total,
+        errors: stats.errors,
+        hours: stats.windowHours,
+      })
+      : t('stats.none');
 
     if (stats.total === 0) {
-      $('stats-body').replaceChildren(el('div', { class: 'empty' }, 'No lines matched in the sessions log for this window.'));
-      $('recent-body').replaceChildren(el('div', { class: 'empty' }, 'No requests yet.'));
+      $('stats-body').replaceChildren(el('div', { class: 'empty' }, t('stats.noLines')));
+      $('recent-body').replaceChildren(el('div', { class: 'empty' }, t('stats.noRequests')));
       return;
     }
 
@@ -206,13 +228,13 @@
 
     const recentTbl = el('table', { class: 'mapping' },
       el('thead', {}, el('tr', {},
-        el('th', {}, 'When'),
-        el('th', {}, 'Method'),
-        el('th', {}, 'Path'),
-        el('th', {}, 'Status'),
+        el('th', {}, t('stats.when')),
+        el('th', {}, t('stats.method')),
+        el('th', {}, t('stats.path')),
+        el('th', {}, t('stats.status')),
       )),
       el('tbody', {}, ...stats.recent.slice(0, 14).map(r => el('tr', {},
-        el('td', { class: 'mono', style: 'font-size: 11px;' }, new Date(r.ts).toLocaleTimeString()),
+        el('td', { class: 'mono', style: 'font-size: 11px;' }, new Date(r.ts).toLocaleTimeString(i18n.getLocale())),
         el('td', { class: 'mono', style: 'font-size: 12px;' }, r.method),
         el('td', { class: 'mono', style: 'font-size: 11px;' }, r.pathname),
         el('td', {}, el('span', { class: r.status >= 400 ? 'badge yellow' : 'badge green' }, String(r.status))),
@@ -232,7 +254,7 @@
     const wrap = el('div', { class: 'log-line' });
     if (tsPart) {
       const d = new Date(tsPart);
-      wrap.appendChild(el('span', { class: 'ts' }, d.toLocaleTimeString() + ' '));
+      wrap.appendChild(el('span', { class: 'ts' }, d.toLocaleTimeString(i18n.getLocale()) + ' '));
     }
     if (rest.includes(' ERROR ')) {
       wrap.appendChild(el('span', { class: 'err' }, rest));
@@ -249,7 +271,7 @@
   function renderLog(lines) {
     const viewer = $('log-viewer');
     if (!lines.length) {
-      viewer.replaceChildren(el('div', { class: 'empty' }, 'Log is empty.'));
+      viewer.replaceChildren(el('div', { class: 'empty' }, t('logs.empty')));
       return;
     }
     viewer.replaceChildren(...lines.map(formatLogLine));
@@ -266,7 +288,7 @@
     const seconds = Number(raw);
     if (!Number.isFinite(seconds) || seconds <= 0) {
       $('log-interval-input').value = String(state.logIntervalMs / 1000);
-      toast('Invalid interval. Use a number in seconds.', 'err');
+      toast(t('logs.invalidInterval'), 'err');
       return;
     }
     const nextMs = Math.max(500, Math.round(seconds * 1000));
@@ -282,8 +304,10 @@
       state.lastStatusOk = true;
     } catch (e) {
       $('status-dot').classList.add('down');
-      $('status-summary').textContent = 'unreachable';
-      if (state.lastStatusOk) toast(`Status request failed: ${e.message}`, 'err');
+      $('status-summary').textContent = t('status.unreachable');
+      if (state.lastStatusOk) {
+        toast(t('status.requestFailed', { message: e.message }), 'err');
+      }
       state.lastStatusOk = false;
     }
   }
@@ -293,7 +317,7 @@
       const cfg = await fetchJSON('/api/config');
       renderConfig(cfg);
     } catch (e) {
-      $('config-body').replaceChildren(el('div', { class: 'empty' }, `Error: ${e.message}`));
+      $('config-body').replaceChildren(el('div', { class: 'empty' }, t('common.error', { message: e.message })));
     }
   }
 
@@ -302,7 +326,7 @@
       const stats = await fetchJSON('/api/stats?hours=24');
       renderStats(stats);
     } catch (e) {
-      $('stats-body').replaceChildren(el('div', { class: 'empty' }, `Error: ${e.message}`));
+      $('stats-body').replaceChildren(el('div', { class: 'empty' }, t('common.error', { message: e.message })));
     }
   }
 
@@ -312,14 +336,14 @@
       const data = await fetchJSON('/api/log?lines=80');
       renderLog(data.lines);
     } catch (e) {
-      $('log-viewer').replaceChildren(el('div', { class: 'empty' }, `Error: ${e.message}`));
+      $('log-viewer').replaceChildren(el('div', { class: 'empty' }, t('common.error', { message: e.message })));
     }
   }
 
   async function doControl(action) {
     const confirmMsg = {
-      stop: 'Stop the proxy? Clients will fail until you restart.',
-      restart: 'Restart the proxy? The dashboard will briefly disconnect.',
+      stop: t('actions.stopConfirm'),
+      restart: t('actions.restartConfirm'),
       enable: null,
       disable: null,
     };
@@ -332,9 +356,9 @@
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      toast(`Scheduled: cursor-api-proxy ${r.action}`, 'ok');
+      toast(t('actions.scheduled', { action: r.action }), 'ok');
       if (action === 'restart' || action === 'stop') {
-        toast('Reconnecting…', 'warn', 6000);
+        toast(t('actions.reconnecting'), 'warn', 6000);
         setTimeout(() => refreshAll(), 1500);
         setTimeout(() => refreshAll(), 3500);
         setTimeout(() => refreshAll(), 5500);
@@ -342,8 +366,9 @@
         setTimeout(() => refreshAll(), 800);
       }
     } catch (e) {
-      toast(`Action failed: ${e.message}`, 'err');
-      await alertPopup(`Action failed: ${e.message}`);
+      const message = t('actions.failed', { message: e.message });
+      toast(message, 'err');
+      await alertPopup(message);
     }
   }
 
@@ -358,21 +383,22 @@
     $('refresh-btn').addEventListener('click', refreshAll);
     $('pause-btn').addEventListener('click', () => {
       state.paused = !state.paused;
-      $('pause-btn').textContent = state.paused ? 'Resume' : 'Pause';
+      $('pause-btn').textContent = state.paused ? t('logs.resume') : t('logs.pause');
     });
     $('clear-btn').addEventListener('click', async () => {
-      if (!(await confirmPopup('Clear and archive current sessions log?', true))) return;
+      if (!(await confirmPopup(t('logs.clearConfirm'), true))) return;
       try {
         const r = await fetchJSON('/api/log/clear', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({}),
         });
-        toast(`Archived log to ${r.archivePath}`, 'ok', 5000);
+        toast(t('logs.archived', { path: r.archivePath }), 'ok', 5000);
         refreshAll();
       } catch (e) {
-        toast(`Clear failed: ${e.message}`, 'err');
-        await alertPopup(`Clear failed: ${e.message}`);
+        const message = t('logs.clearFailed', { message: e.message });
+        toast(message, 'err');
+        await alertPopup(message);
       }
     });
     $('log-interval-input').addEventListener('input', () => {
@@ -391,6 +417,8 @@
   }
 
   function start() {
+    i18n.applyTranslations();
+    i18n.bindLanguageSelect();
     bind();
     refreshAll();
     state.statusTimer = setInterval(refreshStatus, 5000);

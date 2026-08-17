@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { getLocale, t, type AppLocale } from "../lib/i18n.js";
 import { ACCOUNTS_DIR } from "./constants.js";
 import {
   readCachedToken,
@@ -28,6 +29,17 @@ export interface AccountInfo {
   expiresAt?: string;
 }
 
+function displayPlan(plan: string, locale: AppLocale): string {
+  switch (plan) {
+    case "Enterprise":
+      return t("accounts.plan.enterprise", {}, locale);
+    case "Free":
+      return t("accounts.plan.free", {}, locale);
+    default:
+      return plan;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -36,7 +48,11 @@ export interface AccountInfo {
  * Reads authentication and plan metadata from a saved account directory.
  * Never throws — returns `authenticated: false` on any read/parse error.
  */
-export function readAccountInfo(name: string, configDir: string): AccountInfo {
+export function readAccountInfo(
+  name: string,
+  configDir: string,
+  locale: AppLocale = getLocale(),
+): AccountInfo {
   const info: AccountInfo = { name, configDir, authenticated: false };
 
   const configFile = path.join(configDir, "cli-config.json");
@@ -92,7 +108,7 @@ export function readAccountInfo(name: string, configDir: string): AccountInfo {
     if (custom.stripeMembershipExpiration) {
       info.expiresAt = new Date(
         custom.stripeMembershipExpiration,
-      ).toLocaleDateString();
+      ).toLocaleDateString(locale);
     }
   } catch {
     // malformed statsig cache — skip plan info
@@ -106,8 +122,9 @@ export function readAccountInfo(name: string, configDir: string): AccountInfo {
 // ---------------------------------------------------------------------------
 
 export async function handleAccountsList(): Promise<void> {
+  const locale = getLocale();
   if (!fs.existsSync(ACCOUNTS_DIR)) {
-    console.log("No accounts found. Use 'cursor-api-proxy login' to add one.");
+    console.log(t("accounts.none", {}, locale));
     return;
   }
 
@@ -115,11 +132,11 @@ export async function handleAccountsList(): Promise<void> {
   const names = entries.filter((e) => e.isDirectory()).map((e) => e.name);
 
   if (names.length === 0) {
-    console.log("No accounts found. Use 'cursor-api-proxy login' to add one.");
+    console.log(t("accounts.none", {}, locale));
     return;
   }
 
-  console.log("🔑 Cursor Accounts:\n");
+  console.log(`🔑 ${t("accounts.title", {}, locale)}\n`);
 
   // Try to find an available token (per-account cache first, shared keychain fallback)
   const keychainToken = readKeychainToken();
@@ -127,7 +144,7 @@ export async function handleAccountsList(): Promise<void> {
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
     const configDir = path.join(ACCOUNTS_DIR, name);
-    const info = readAccountInfo(name, configDir);
+    const info = readAccountInfo(name, configDir, locale);
 
     console.log(`  ${i + 1}. ${name}`);
 
@@ -158,54 +175,59 @@ export async function handleAccountsList(): Promise<void> {
 
       if (info.email) {
         const display = info.displayName ? ` (${info.displayName})` : "";
-        console.log(`     � ${info.email}${display}`);
+        console.log(`     📧 ${info.email}${display}`);
       }
       // Show static plan only when live data isn't available (avoids contradictions)
       if (info.plan && !liveProfile) {
         const canceled =
-          info.subscriptionStatus === "canceled" ? " · canceled" : "";
-        const expiry = info.expiresAt ? ` · expires ${info.expiresAt}` : "";
-        console.log(`     📊 ${info.plan}${canceled}${expiry}`);
+          info.subscriptionStatus === "canceled"
+            ? ` · ${t("accounts.canceled", {}, locale)}`
+            : "";
+        const expiry = info.expiresAt
+          ? ` · ${t("accounts.expires", { date: info.expiresAt }, locale)}`
+          : "";
+        const plan = displayPlan(info.plan, locale);
+        console.log(`     📊 ${plan}${canceled}${expiry}`);
       }
-      console.log(`     ✅ Authenticated`);
+      console.log(`     ✅ ${t("accounts.authenticated", {}, locale)}`);
 
       if (liveProfile) {
-        console.log(`     💳 ${describePlan(liveProfile)}`);
+        console.log(`     💳 ${describePlan(liveProfile, locale)}`);
       }
       if (liveUsage) {
-        for (const line of formatUsageSummary(liveUsage)) console.log(line);
+        for (const line of formatUsageSummary(liveUsage, locale)) {
+          console.log(line);
+        }
       }
     } else {
-      console.log(`     ⚠️  Not authenticated`);
+      console.log(`     ⚠️  ${t("accounts.notAuthenticated", {}, locale)}`);
     }
 
     console.log("");
   }
 
-  console.log(
-    "Tip: run 'cursor-api-proxy logout <name>' to remove an account.",
-  );
+  console.log(t("accounts.tip", {}, locale));
 }
 
 export async function handleLogout(accountName: string): Promise<void> {
   if (!accountName) {
-    console.error("❌ Error: Please specify the account name to remove.");
-    console.error("Usage: cursor-api-proxy logout <account-name>");
+    console.error(`❌ ${t("accounts.nameRequired")}`);
+    console.error(t("accounts.logoutUsage"));
     process.exit(1);
   }
 
   const configDir = path.join(ACCOUNTS_DIR, accountName);
 
   if (!fs.existsSync(configDir)) {
-    console.error(`❌ Account '${accountName}' not found.`);
+    console.error(`❌ ${t("accounts.notFound", { name: accountName })}`);
     process.exit(1);
   }
 
   try {
     fs.rmSync(configDir, { recursive: true, force: true });
-    console.log(`✅ Account '${accountName}' removed.`);
+    console.log(`✅ ${t("accounts.removed", { name: accountName })}`);
   } catch (err) {
-    console.error(`❌ Error removing account:`, err);
+    console.error(`❌ ${t("accounts.removeFailed")}`, err);
     process.exit(1);
   }
 }

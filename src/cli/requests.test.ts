@@ -74,6 +74,20 @@ describe("requests command", () => {
     expect(rendered).toContain("\x1b[31m500");
   });
 
+  it("renders Chinese labels when requested", () => {
+    const rendered = formatRequests(requests, {
+      logPath: "/tmp/sessions.log",
+      width: 100,
+      color: false,
+      locale: "zh-CN",
+    });
+
+    expect(rendered).toContain("最近请求（3）");
+    expect(rendered).toContain("时间");
+    expect(rendered).toContain("来源");
+    expect(rendered).toContain("路径");
+  });
+
   it("reads newest normal request lines and skips error records", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "requests-cli-"));
     tempDirs.push(dir);

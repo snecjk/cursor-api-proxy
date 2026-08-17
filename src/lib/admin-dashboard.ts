@@ -240,7 +240,6 @@ export function handleAdminDashboard(
   const { config, version } = opts;
   const root = packageRoot();
   const publicDir = path.join(root, "public");
-  const wikiFile = path.join(root, "docs", "WIKI.md");
   const url = req.url ?? "/";
   const pathname = url.split("?")[0] ?? "/";
   const q = parseQuery(url);
@@ -315,6 +314,10 @@ export function handleAdminDashboard(
     });
   }
   if (req.method === "GET" && pathname === "/api/wiki") {
+    const wikiName = q.lang?.toLowerCase().startsWith("zh")
+      ? "WIKI.zh-CN.md"
+      : "WIKI.md";
+    const wikiFile = path.join(root, "docs", wikiName);
     fs.readFile(wikiFile, "utf8", (err, data) => {
       if (err) return json(res, 500, { error: "wiki not readable" });
       res.writeHead(200, {

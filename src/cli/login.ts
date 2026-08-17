@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { launch as launchChrome } from "chrome-launcher";
 
 import { loadEnvConfig, resolveAgentCommand } from "../lib/env.js";
+import { t } from "../lib/i18n.js";
 import { ACCOUNTS_DIR } from "./constants.js";
 import { readKeychainToken, writeCachedToken } from "./usage.js";
 
@@ -26,7 +27,7 @@ async function openIncognito(url: string, proxies: string[]): Promise<void> {
   if (proxies.length > 0) {
     const proxy = proxies[Math.floor(Math.random() * proxies.length)];
     chromeFlags.push(`--proxy-server=${proxy}`);
-    console.log(`🔀 Using proxy: ${proxy}`);
+    console.log(`🔀 ${t("login.usingProxy", { proxy })}`);
   }
 
   try {
@@ -39,10 +40,8 @@ async function openIncognito(url: string, proxies: string[]): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log(`\n🌐 Could not open Chrome automatically: ${msg}`);
-    console.log(
-      `Please open this URL in a private/incognito window:\n${url}\n`,
-    );
+    console.log(`\n🌐 ${t("login.chromeFailed", { message: msg })}`);
+    console.log(t("login.openUrl", { url }));
   }
 }
 
@@ -63,12 +62,10 @@ export async function handleLogin(
   fs.mkdirSync(ACCOUNTS_DIR, { recursive: true });
   fs.mkdirSync(configDir, { recursive: true });
 
-  console.log(`🔑 Logging into Cursor account: ${name}`);
-  console.log(`📁 Config: ${configDir}`);
+  console.log(`🔑 ${t("login.start", { name })}`);
+  console.log(`📁 ${t("login.config", { path: configDir })}`);
   console.log("");
-  console.log(
-    "A Chrome incognito window will open — complete the login there.",
-  );
+  console.log(t("login.instructions"));
   console.log("");
 
   return new Promise<void>((resolve, reject) => {
@@ -99,7 +96,9 @@ export async function handleLogin(
     const onCancel = (signal: string) => {
       child.kill();
       cleanupDir();
-      if (signal === "SIGINT") console.log("\n\n❌ Login cancelled.");
+      if (signal === "SIGINT") {
+        console.log(`\n\n❌ ${t("login.cancelled")}`);
+      }
       process.exit(0);
     };
     const onSigint = () => onCancel("SIGINT");
@@ -144,10 +143,10 @@ export async function handleLogin(
       cleanupDir();
       if (err.code === "ENOENT") {
         console.error(
-          `❌ Could not find '${envCfg.agentBin}'. Make sure the Cursor CLI is installed.`,
+          `❌ ${t("login.cliMissing", { binary: envCfg.agentBin })}`,
         );
       } else {
-        console.error("❌ Error launching agent login:", err);
+        console.error(`❌ ${t("login.launchFailed")}`, err);
       }
       reject(err);
     });
@@ -160,14 +159,12 @@ export async function handleLogin(
         const token = readKeychainToken();
         if (token) writeCachedToken(configDir, token);
 
-        console.log(
-          `\n✅ Account '${name}' saved — it will be auto-discovered when you start the proxy.`,
-        );
+        console.log(`\n✅ ${t("login.saved", { name })}`);
         resolve();
       } else {
         cleanupDir();
-        console.error(`\n❌ Login failed (exit code ${code}).`);
-        reject(new Error(`Login failed with code ${code}`));
+        console.error(`\n❌ ${t("login.failed", { code })}`);
+        reject(new Error(t("login.failedError", { code })));
       }
     });
   });

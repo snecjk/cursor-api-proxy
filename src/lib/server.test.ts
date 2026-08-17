@@ -207,6 +207,24 @@ describe("startBridgeServer", () => {
     expect(body).toContain("cursor-api-proxy");
   });
 
+  it("serves the requested wiki language", async () => {
+    servers = startBridgeServer({
+      version: "1.0.0",
+      config: createTestConfig(),
+    });
+    await new Promise<void>((resolve) =>
+      servers[0].on("listening", () => resolve()),
+    );
+
+    const chinese = await fetchServer(servers[0], "/api/wiki?lang=zh-CN");
+    const english = await fetchServer(servers[0], "/api/wiki?lang=en");
+
+    expect(chinese.status).toBe(200);
+    expect(chinese.body).toContain("中文使用手册");
+    expect(english.status).toBe(200);
+    expect(english.body).toContain("What you get in the browser");
+  });
+
   it("does not append session logs for dashboard /api/status and /api/log polling", async () => {
     const appendSessionLineMock = vi.mocked(appendSessionLine);
     appendSessionLineMock.mockClear();

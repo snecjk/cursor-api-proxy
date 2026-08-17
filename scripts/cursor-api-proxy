@@ -13,6 +13,31 @@ PIDFILE="${STORAGE}/proxy.pid"
 PORT="${CURSOR_BRIDGE_PORT:-8765}"
 HOST="${CURSOR_BRIDGE_HOST:-127.0.0.1}"
 
+LOCALE_SOURCE="${CURSOR_API_PROXY_LANG:-${LC_ALL:-${LC_MESSAGES:-${LANG:-en}}}}"
+case "$LOCALE_SOURCE" in
+  zh*|ZH*) APP_LANG="zh-CN" ;;
+  *) APP_LANG="en" ;;
+esac
+export CURSOR_API_PROXY_LANG="$APP_LANG"
+
+_msg() {
+  if [[ "$APP_LANG" == "zh-CN" ]]; then
+    printf '%s' "$2"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+_say() {
+  _msg "$1" "$2"
+  printf '\n'
+}
+
+_err() {
+  _msg "$1" "$2" >&2
+  printf '\n' >&2
+}
+
 _resolve_root() {
   if [[ -n "${CURSOR_API_PROXY_ROOT:-}" ]]; then
     echo "${CURSOR_API_PROXY_ROOT}"
@@ -52,12 +77,16 @@ ROOT="$(_resolve_root)"
 # leading to `nohup: : No such file or directory`).
 _entry() {
   if [[ -z "$ROOT" ]]; then
-    echo "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout (directory containing dist/cli.js)." >&2
+    _err \
+      "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout (directory containing dist/cli.js)." \
+      "请将 CURSOR_API_PROXY_ROOT 设置为 cursor-api-proxy 项目目录（其中应包含 dist/cli.js）。"
     return 1
   fi
   local cli="${ROOT}/dist/cli.js"
   if [[ ! -f "$cli" ]]; then
-    echo "Missing ${cli} — run: cd \"$ROOT\" && npm install && npm run build" >&2
+    _err \
+      "Missing ${cli} — run: cd \"$ROOT\" && npm install && npm run build" \
+      "缺少 ${cli}，请运行：cd \"$ROOT\" && npm install && npm run build"
     return 1
   fi
   local node_bin="${CURSOR_API_PROXY_NODE:-}"
@@ -90,7 +119,9 @@ _entry() {
     done
   fi
   if [[ -z "$node_bin" || ! -x "$node_bin" ]]; then
-    echo "node not found. Install Node 18+ or set CURSOR_API_PROXY_NODE." >&2
+    _err \
+      "node not found. Install Node 18+ or set CURSOR_API_PROXY_NODE." \
+      "找不到 node。请安装 Node 18+ 或设置 CURSOR_API_PROXY_NODE。"
     return 1
   fi
   echo "$node_bin|$cli"
@@ -105,7 +136,9 @@ _load_entry() {
   fi
   IFS='|' read -r node exe <<<"$entry"
   if [[ -z "${node:-}" || -z "${exe:-}" ]]; then
-    echo "Internal error: empty node/cli from _entry" >&2
+    _err \
+      "Internal error: empty node/cli from _entry" \
+      "内部错误：_entry 返回了空的 node/cli 路径"
     return 1
   fi
 }
@@ -130,29 +163,39 @@ _pid_alive() {
 }
 
 _health_text() {
-  echo "cursor-api-proxy launcher"
-  echo "  ROOT: ${ROOT:-"(unset — set CURSOR_API_PROXY_ROOT)"}"
-  echo "  URL:  http://${HOST}:${PORT}/"
-  echo "  log:  $LOG"
-  echo "  pid:  $PIDFILE"
+  _say "cursor-api-proxy launcher" "cursor-api-proxy 启动器"
+  local root_value="$ROOT"
+  if [[ -z "$root_value" ]]; then
+    root_value="$(_msg "(unset — set CURSOR_API_PROXY_ROOT)" "（未设置，请设置 CURSOR_API_PROXY_ROOT）")"
+  fi
+  _say "  ROOT: $root_value" "  项目目录：$root_value"
+  _say "  URL:  http://${HOST}:${PORT}/" "  地址：http://${HOST}:${PORT}/"
+  _say "  log:  $LOG" "  日志：$LOG"
+  _say "  pid:  $PIDFILE" "  PID 文件：$PIDFILE"
   local lp=false
   if [[ "$(uname -s)" == "Darwin" ]] && launchctl list 2>/dev/null | grep -q "$LABEL"; then
     lp=true
   fi
-  echo "  launchd: $([[ "$lp" == true ]] && echo loaded || echo not loaded)"
+  if [[ "$lp" == true ]]; then
+    _say "  launchd: loaded" "  launchd：已加载"
+  else
+    _say "  launchd: not loaded" "  launchd：未加载"
+  fi
   local pid="$(_read_pid)"
   if _pid_alive "$pid"; then
-    echo "  process: RUNNING (pid $pid)"
+    _say "  process: RUNNING (pid $pid)" "  进程：运行中（PID $pid）"
   else
-    echo "  process: not running (stale pid file ignored if any)"
+    _say \
+      "  process: not running (stale pid file ignored if any)" \
+      "  进程：未运行（已忽略可能存在的过期 PID 文件）"
   fi
   if _http_ok; then
-    echo "  /healthz: ok"
+    _say "  /healthz: ok" "  /healthz：正常"
   else
-    echo "  /healthz: no response"
+    _say "  /healthz: no response" "  /healthz：无响应"
   fi
   if [[ -f "$LOG" ]]; then
-    echo "  last log lines:"
+    _say "  last log lines:" "  最新日志："
     tail -n 5 "$LOG" 2>/dev/null | sed 's/^/    /' || true
   fi
 }
@@ -162,43 +205,51 @@ cmd_start() {
   _load_entry || exit 1
   mkdir -p "$STORAGE"
   if _http_ok; then
-    echo "Already responding on http://${HOST}:${PORT}/healthz"
+    _say \
+      "Already responding on http://${HOST}:${PORT}/healthz" \
+      "服务已在 http://${HOST}:${PORT}/healthz 正常响应"
     exit 0
   fi
   local old="$(_read_pid)"
   if _pid_alive "$old"; then
-    echo "PID $old still alive but /healthz failed — try: $0 restart" >&2
+    _err \
+      "PID $old still alive but /healthz failed — try: $0 restart" \
+      "PID $old 仍在运行，但 /healthz 检查失败，请尝试：$0 restart"
     exit 1
   fi
-  echo "Starting (background) → $LOG"
+  _say "Starting (background) → $LOG" "正在后台启动 → $LOG"
   nohup "$node" "$exe" >>"$LOG" 2>&1 &
   local npid=$!
   echo "$npid" >"$PIDFILE" || true
   for _ in $(seq 1 20); do
     if _http_ok; then
-      echo "OK — http://${HOST}:${PORT}/"
+      _say "OK — http://${HOST}:${PORT}/" "启动成功 — http://${HOST}:${PORT}/"
       exit 0
     fi
     sleep 0.15
   done
-  echo "Started, but no /healthz on port $PORT (see tail of $LOG)" >&2
+  _err \
+    "Started, but no /healthz on port $PORT (see tail of $LOG)" \
+    "进程已启动，但端口 $PORT 的 /healthz 无响应（请查看 $LOG 末尾）"
   exit 1
 }
 
 _stop_internal() {
   local pid="$(_read_pid)"
   if [[ "$(uname -s)" == "Darwin" ]] && launchctl list 2>/dev/null | grep -q "$LABEL"; then
-    echo "Note: launchd has $LABEL loaded — process may respawn. Run: $0 disable" >&2
+    _err \
+      "Note: launchd has $LABEL loaded — process may respawn. Run: $0 disable" \
+      "注意：launchd 已加载 $LABEL，进程可能会自动重启。请运行：$0 disable"
   fi
   if ! _pid_alive "$pid"; then
-    echo "Not running."
+    _say "Not running." "服务未运行。"
     rm -f "$PIDFILE" 2>/dev/null || true
     return 0
   fi
   kill -TERM "$pid" 2>/dev/null || true
   for _ in $(seq 1 25); do
     if ! _pid_alive "$pid"; then
-      echo "Stopped (pid $pid)"
+      _say "Stopped (pid $pid)" "已停止（PID $pid）"
       rm -f "$PIDFILE" 2>/dev/null || true
       return 0
     fi
@@ -206,7 +257,7 @@ _stop_internal() {
   done
   kill -KILL "$pid" 2>/dev/null || true
   rm -f "$PIDFILE" 2>/dev/null || true
-  echo "Force-stopped pid $pid"
+  _say "Force-stopped pid $pid" "已强制停止 PID $pid"
   return 0
 }
 
@@ -222,14 +273,18 @@ cmd_restart() {
 
 cmd_rebuild() {
   if [[ -z "$ROOT" ]]; then
-    echo "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout (directory containing dist/cli.js)." >&2
+    _err \
+      "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout (directory containing dist/cli.js)." \
+      "请将 CURSOR_API_PROXY_ROOT 设置为 cursor-api-proxy 项目目录（其中应包含 dist/cli.js）。"
     exit 1
   fi
   if ! command -v npm >/dev/null 2>&1; then
-    echo "npm not found in PATH. Install Node/npm or run with a shell that has npm." >&2
+    _err \
+      "npm not found in PATH. Install Node/npm or run with a shell that has npm." \
+      "PATH 中找不到 npm。请安装 Node/npm，或在能找到 npm 的 Shell 中运行。"
     exit 1
   fi
-  echo "Rebuilding in $ROOT"
+  _say "Rebuilding in $ROOT" "正在 $ROOT 中重新构建"
   (
     cd "$ROOT"
     npm run build
@@ -238,17 +293,19 @@ cmd_rebuild() {
 
 cmd_folder() {
   if [[ -z "$ROOT" ]]; then
-    echo "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout." >&2
+    _err \
+      "Set CURSOR_API_PROXY_ROOT to your cursor-api-proxy checkout." \
+      "请将 CURSOR_API_PROXY_ROOT 设置为 cursor-api-proxy 项目目录。"
     exit 1
   fi
   if [[ "$(uname -s)" == "Darwin" ]]; then
     open "$ROOT"
-    echo "Opened: $ROOT"
+    _say "Opened: $ROOT" "已打开：$ROOT"
     return 0
   fi
   if command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$ROOT" >/dev/null 2>&1 || true
-    echo "Opened: $ROOT"
+    _say "Opened: $ROOT" "已打开：$ROOT"
     return 0
   fi
   echo "$ROOT"
@@ -257,7 +314,10 @@ cmd_folder() {
 cmd_enable() {
   local node exe
   _load_entry || exit 1
-  [[ "$(uname -s)" == "Darwin" ]] || { echo "launchd is macOS-only." >&2; exit 1; }
+  [[ "$(uname -s)" == "Darwin" ]] || {
+    _err "launchd is macOS-only." "launchd 仅支持 macOS。"
+    exit 1
+  }
   mkdir -p "$(dirname "$PLIST")"
   local launcher
   launcher="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -272,6 +332,7 @@ cmd_enable() {
   <dict>
     <key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
     <key>CURSOR_API_PROXY_ROOT</key><string>${ROOT}</string>
+    <key>CURSOR_API_PROXY_LANG</key><string>${APP_LANG}</string>
     <key>CURSOR_BRIDGE_PORT</key><string>${PORT}</string>
     <key>CURSOR_BRIDGE_HOST</key><string>${HOST}</string>
   </dict>
@@ -289,14 +350,19 @@ cmd_enable() {
 EOF
   launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$PLIST"
-  echo "Loaded $PLIST"
+  _say "Loaded $PLIST" "已加载 $PLIST"
 }
 
 cmd_disable() {
-  [[ "$(uname -s)" == "Darwin" ]] || { echo "launchd is macOS-only." >&2; exit 1; }
+  [[ "$(uname -s)" == "Darwin" ]] || {
+    _err "launchd is macOS-only." "launchd 仅支持 macOS。"
+    exit 1
+  }
   launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
   rm -f "$PLIST"
-  echo "Unloaded and removed plist (if it existed)."
+  _say \
+    "Unloaded and removed plist (if it existed)." \
+    "已卸载并删除 plist（如果原先存在）。"
 }
 
 cmd_run() {
@@ -321,7 +387,9 @@ cmd_menu() {
     echo
     _health_text
     echo
-    echo "  1) start   2) stop   3) restart   4) health   5) enable   6) disable   7) rebuild   8) folder   q) quit"
+    _say \
+      "  1) start   2) stop   3) restart   4) health   5) enable   6) disable   7) rebuild   8) folder   q) quit" \
+      "  1) 启动   2) 停止   3) 重启   4) 状态   5) 启用自启   6) 关闭自启   7) 重新构建   8) 打开目录   q) 退出"
     read -r -p "> " choice || exit 0
     case "$choice" in
       1) cmd_start ;;
@@ -333,7 +401,7 @@ cmd_menu() {
       7) cmd_rebuild ;;
       8) cmd_folder ;;
       q|Q) exit 0 ;;
-      *) echo "Unknown option" ;;
+      *) _say "Unknown option" "未知选项" ;;
     esac
   done
 }
@@ -352,7 +420,12 @@ main() {
     run) cmd_run ;;
     requests) shift; cmd_requests "$@" ;;
     "" ) cmd_health; echo; cmd_menu ;;
-    *) echo "Usage: $0 {start|stop|restart|health|enable|disable|rebuild|folder|run|requests}" >&2; exit 2 ;;
+    *)
+      _err \
+        "Usage: $0 {start|stop|restart|health|enable|disable|rebuild|folder|run|requests}" \
+        "用法：$0 {start|stop|restart|health|enable|disable|rebuild|folder|run|requests}"
+      exit 2
+      ;;
   esac
 }
 
