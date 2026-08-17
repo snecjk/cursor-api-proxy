@@ -160,15 +160,16 @@ ensure_source() {
 
 build_image() {
   log "构建镜像 ${PROXY_IMAGE}（Dockerfile 会安装 Cursor CLI，需能访问 cursor.com）..."
-  # 构建期走 mihomo，避免大陆直连失败
+  # BuildKit 不支持 --network=<自定义网桥>；用 host + 宿主机回环上的 mihomo:7890
+  local build_proxy="${BUILD_HTTP_PROXY:-http://127.0.0.1:7890}"
   docker build \
-    --build-arg "HTTP_PROXY=${HTTP_PROXY_URL}" \
-    --build-arg "HTTPS_PROXY=${HTTP_PROXY_URL}" \
-    --build-arg "http_proxy=${HTTP_PROXY_URL}" \
-    --build-arg "https_proxy=${HTTP_PROXY_URL}" \
-    --build-arg "NO_PROXY=${NO_PROXY_LIST}" \
-    --build-arg "no_proxy=${NO_PROXY_LIST}" \
-    --network "${SHARED_NETWORK}" \
+    --network=host \
+    --build-arg "HTTP_PROXY=${build_proxy}" \
+    --build-arg "HTTPS_PROXY=${build_proxy}" \
+    --build-arg "http_proxy=${build_proxy}" \
+    --build-arg "https_proxy=${build_proxy}" \
+    --build-arg "NO_PROXY=localhost,127.0.0.1" \
+    --build-arg "no_proxy=localhost,127.0.0.1" \
     -t "${PROXY_IMAGE}" \
     "${SOURCE_DIR}"
   ok "镜像构建完成。"

@@ -85,14 +85,16 @@ create_container() {
   log "拉取镜像 ${MIHOMO_IMAGE}..."
   docker pull "${MIHOMO_IMAGE}"
 
-  log "启动 ${MIHOMO_CONTAINER}（不映射公网端口）..."
+  # 仅本机 7890：方便 docker build --network=host 走代理；不对公网开放
+  log "启动 ${MIHOMO_CONTAINER}（仅 127.0.0.1:7890 + ${SHARED_NETWORK}）..."
   docker run -d \
     --name "${MIHOMO_CONTAINER}" \
     --restart always \
     --network "${SHARED_NETWORK}" \
+    -p 127.0.0.1:7890:7890 \
     -v "${MIHOMO_BASE_DIR}:/root/.config/mihomo" \
     "${MIHOMO_IMAGE}" \
-    -d /root/.config/mihomo -f config.yaml
+    -d /root/.config/mihomo -f /root/.config/mihomo/config.yaml
 }
 
 wait_ready() {
